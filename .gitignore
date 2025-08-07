@@ -1,0 +1,38 @@
+# API Keys ve hassas bilgiler
+.env
+.env.local
+src/config/keys.js
+*.key
+config.js
+
+# Node modules
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Dependencies
+package-lock.json
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDE Files
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build directories
+build/
+dist/ 
