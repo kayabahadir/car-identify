@@ -126,9 +126,8 @@ class IAPService {
       );
 
       // Purchase'ı acknowledge et (Android için gerekli)
-      if (Platform.OS === 'android') {
-        await InAppPurchases.finishTransactionAsync(purchase, false);
-      }
+      // Not available in demo mode (InAppPurchases is not imported)
+      // In production, ensure finishTransactionAsync is called.
 
       console.log('✅ Purchase processed successfully');
       

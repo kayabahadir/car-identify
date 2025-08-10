@@ -65,8 +65,8 @@ const ResultScreen = ({ navigation, route }) => {
         
         if (error.message.includes('API key not configured')) {
           alertMessage = language === 'tr' 
-            ? 'OpenAI API anahtarı yapılandırılmamış. Demo sonuçları gösteriliyor. Gerçek araç tanımlaması için API anahtarınızı src/services/openaiService.js dosyasına ekleyin.'
-            : 'OpenAI API key not configured. Showing demo results. Please add your API key to src/services/openaiService.js for real vehicle identification.';
+            ? 'OpenAI API anahtarı yapılandırılmamış. Demo sonuçları gösteriliyor. Gerçek analiz için EXPO_PUBLIC_OPENAI_API_KEY ortam değişkenini EAS Secrets ile ayarlayın veya güvenli bir backend proxy kullanın.'
+            : 'OpenAI API key not configured. Showing demo results. For real analysis, set EXPO_PUBLIC_OPENAI_API_KEY via EAS Secrets or use a secure backend proxy.';
         } else if (error.message.includes('Response missing language data structure')) {
           alertTitle = t('analysisIssue');
           alertMessage = language === 'tr'

@@ -123,30 +123,9 @@ const HomeScreen = ({ navigation, route }) => {
                     [{ text: t('great'), onPress: () => checkCreditStatus() }]
                   );
                 } else {
-                  // Demo mode - simüle edilmiş satın alma
-                  console.log('🎯 Demo mode: Simulating purchase from onboarding');
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-
-                  // Kredileri ekle
-                  await CreditService.addCredits(packageInfo.credits, 'onboarding_demo_purchase');
-
-                  // Ücretsiz analiz hakkını kullanılmış olarak işaretle (satın alma yaptığı için)
-                  await FirstTimeService.markFreeAnalysisUsed();
-
-                  // Satın almayı logla
-                  await CreditService.logPurchase({
-                    productId: packageInfo.id,
-                    credits: packageInfo.credits,
-                    price: packageInfo.price,
-                    currency: 'USD',
-                    platform: 'demo',
-                    source: 'onboarding'
-                  });
-
                   Alert.alert(
-                    `🎉 ${t('demoPurchaseSuccess')}`,
-                    `${packageInfo.credits} ${t('purchaseSuccessMessage')}\n\n⚠️ ${t('demoPurchaseNote')}`,
-                    [{ text: t('great'), onPress: () => checkCreditStatus() }]
+                    t('unavailable') || 'Kullanılamıyor',
+                    t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
                   );
                 }
               } catch (error) {

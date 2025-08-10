@@ -114,34 +114,9 @@ const PurchaseScreen = ({ navigation }) => {
           ]
         );
       } else {
-        // Demo mode - simüle edilmiş satın alma
-        console.log('🎯 Demo mode: Simulating purchase');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Kredileri ekle
-        await CreditService.addCredits(packageInfo.credits, 'demo_purchase');
-
-        // Satın alma yapıldığında ücretsiz analiz hakkını kullanılmış olarak işaretle
-        await FirstTimeService.markFreeAnalysisUsed();
-
-        // Satın almayı logla
-        await CreditService.logPurchase({
-          productId: packageInfo.id,
-          credits: packageInfo.credits,
-          price: packageInfo.price,
-          currency: 'USD',
-          platform: 'demo'
-        });
-
         Alert.alert(
-          `🎉 ${t('demoPurchaseSuccess')}`,
-          `${packageInfo.credits} ${t('purchaseSuccessMessage')}\n\n⚠️ ${t('demoPurchaseNote')}`,
-          [
-            {
-              text: t('startAnalyzing'),
-              onPress: () => navigation.navigate('Home')
-            }
-          ]
+          t('unavailable') || 'Kullanılamıyor',
+          t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
         );
       }
 

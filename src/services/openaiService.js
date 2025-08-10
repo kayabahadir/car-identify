@@ -1,12 +1,9 @@
 // OpenAI Service for Car Identification
-// Note: Add your OpenAI API key to the config
+// SECURITY: Do not hardcode secrets. Use EAS secrets/env. Keys in client apps are inherently exposable.
 
-import { Alert } from 'react-native';
 import CreditService from './creditService';
 
-// SECURITY: API key should be set via environment variable or secure config
-// For development, you can temporarily set it here, but NEVER commit real keys
-const OPENAI_API_KEY = __DEV__ ? 'YOUR-API-KEY-HERE' : process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 // Convert new engineOptions format to legacy format for UI compatibility
@@ -31,7 +28,7 @@ export const convertToLegacyFormat = (vehicleData) => {
 
 export const identifyVehicle = async (imageUri, language = 'tr') => {
   if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Please add your API key to src/services/openaiService.js');
+    throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
   }
 
   // Kredi/ücretsiz hak kontrolü
@@ -41,8 +38,8 @@ export const identifyVehicle = async (imageUri, language = 'tr') => {
   }
 
   try {
-    // Convert image to base64
-    const base64Image = await convertImageToBase64(imageUri);
+    // Convert image to base64 (use Expo FileSystem for reliability on native)
+    const base64Image = await convertImageToBase64Expo(imageUri);
 
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
@@ -50,8 +47,8 @@ export const identifyVehicle = async (imageUri, language = 'tr') => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: 'gpt-4-turbo',
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
         messages: [
           {
             role: 'user',
@@ -1384,20 +1381,6 @@ export const translateVehicleData = (data) => {
     
     return [];
   };
-
-  // Debug info for mobile
-  const originalPackages = JSON.stringify(data.optionalPackages);
-  const afterEnsure = JSON.stringify(ensureArray(data.optionalPackages));
-  
-  // Show debug alert for improved system
-  setTimeout(() => {
-    const engineCount = data.engineOptions ? data.engineOptions.length : 0;
-    const trimCount = data.availableTrims ? data.availableTrims.length : 0;
-    
-    Alert.alert('IMPROVED System ✅', 
-      `Vehicle: ${data.make} ${data.model}\n\nLanguage: ${language}\n\nChatGPT-Level Quality:\n- Engine Options: ${engineCount} variants\n- Trim Levels: ${trimCount} options\n- Comprehensive Data ✅\n\nFirst Engine: ${data.engineOptions && data.engineOptions[0] ? data.engineOptions[0].name + ' ' + data.engineOptions[0].power : 'Loading...'}`
-    );
-  }, 1000);
 
   // Return data as-is (already in correct language from OpenAI)
   return data;
