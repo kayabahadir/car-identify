@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Car Identify App
 
 AI-Powered Vehicle Recognition mobile app built with React Native and Expo.
@@ -176,3 +177,6 @@ For issues and questions:
 1. Check the troubleshooting section above
 2. Verify OpenAI API key configuration
 3. Ensure all dependencies are properly installed 
+=======
+# car-identify-app
+>>>>>>> f2f89abaf6fa8ac2fea1a941ee1a90c4ce2db279
