@@ -186,11 +186,12 @@ const HomeScreen = ({ navigation, route }) => {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
+        base64: true,
       });
 
       if (!result.canceled) {
-        // Navigate to result screen with the image
-        navigation.navigate('Result', { imageUri: result.assets[0].uri });
+        // Navigate to result screen with the image and base64 for API usage
+        navigation.navigate('Result', { imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }
@@ -214,11 +215,12 @@ const HomeScreen = ({ navigation, route }) => {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
+        base64: true,
       });
 
       if (!result.canceled) {
-        // Navigate to result screen with the image
-        navigation.navigate('Result', { imageUri: result.assets[0].uri });
+        // Navigate to result screen with the image and base64 for API usage
+        navigation.navigate('Result', { imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }

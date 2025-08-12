@@ -26,7 +26,7 @@ export const convertToLegacyFormat = (vehicleData) => {
   return result;
 };
 
-export const identifyVehicle = async (imageUri, language = 'tr') => {
+export const identifyVehicle = async (imageSource, language = 'tr') => {
   if (!OPENAI_API_KEY) {
     throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
   }
@@ -38,8 +38,12 @@ export const identifyVehicle = async (imageUri, language = 'tr') => {
   }
 
   try {
-    // Convert image to base64 (use Expo FileSystem for reliability on native)
-    const base64Image = await convertImageToBase64Expo(imageUri);
+    // Determine base64: prefer provided base64, fallback to reading from uri
+    let base64Image = imageSource?.imageBase64;
+    const imageUri = imageSource?.imageUri || imageSource; // Backward compatibility if string passed
+    if (!base64Image) {
+      base64Image = await convertImageToBase64Expo(imageUri);
+    }
 
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',

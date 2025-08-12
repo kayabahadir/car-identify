@@ -21,7 +21,7 @@ const ResultScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [vehicleData, setVehicleData] = useState(null);
   const [originalData, setOriginalData] = useState(null); // Store original data for re-translation
-  const { imageUri, historyData } = route.params;
+  const { imageUri, imageBase64, historyData } = route.params;
 
   const tabs = [t('overview'), t('specs'), t('trim'), t('audience'), t('issues')];
 
@@ -38,8 +38,8 @@ const ResultScreen = ({ navigation, route }) => {
       try {
         setIsLoading(true);
         
-        // Get dual language data from API
-        const result = await identifyVehicle(imageUri, language);
+        // Get dual language data from API (prefer base64 if available)
+        const result = await identifyVehicle({ imageUri, imageBase64 }, language);
         
         // Add production years if not provided
         if (!result.productionYears && result.year) {
