@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
@@ -186,12 +187,17 @@ const HomeScreen = ({ navigation, route }) => {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
-        base64: true,
       });
 
       if (!result.canceled) {
-        // Navigate to result screen with the image and base64 for API usage
-        navigation.navigate('Result', { imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
+        const asset = result.assets[0];
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        // Navigate to result screen with resized/compressed image
+        navigation.navigate('Result', { imageUri: manipulated.uri, imageBase64: manipulated.base64 });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }
@@ -215,12 +221,17 @@ const HomeScreen = ({ navigation, route }) => {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
-        base64: true,
       });
 
       if (!result.canceled) {
-        // Navigate to result screen with the image and base64 for API usage
-        navigation.navigate('Result', { imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
+        const asset = result.assets[0];
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        // Navigate to result screen with resized/compressed image
+        navigation.navigate('Result', { imageUri: manipulated.uri, imageBase64: manipulated.base64 });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }
