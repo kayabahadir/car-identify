@@ -3,8 +3,13 @@
 
 import CreditService from './creditService';
 
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+const CLIENT_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN;
+const USE_PROXY = !!API_BASE;
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_API_URL = USE_PROXY
+  ? `${API_BASE}/identify`
+  : 'https://api.openai.com/v1/chat/completions';
 
 // Convert new engineOptions format to legacy format for UI compatibility
 export const convertToLegacyFormat = (vehicleData) => {
@@ -27,7 +32,7 @@ export const convertToLegacyFormat = (vehicleData) => {
 };
 
 export const identifyVehicle = async (imageSource, language = 'tr') => {
-  if (!OPENAI_API_KEY) {
+  if (!USE_PROXY && !OPENAI_API_KEY) {
     throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
   }
 
@@ -49,7 +54,9 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        ...(USE_PROXY
+          ? (CLIENT_TOKEN ? { 'x-client-token': CLIENT_TOKEN } : {})
+          : { 'Authorization': `Bearer ${OPENAI_API_KEY}` }),
       },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
@@ -187,12 +194,18 @@ FORMAT RULES:
       }),
     });
 
+    // Read raw text first to handle non-JSON error bodies from proxy
+    const rawBody = await response.text();
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error(`Upstream error ${response.status}: ${rawBody?.slice(0,200) || 'Unknown error'}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (e) {
+      throw new Error(`Proxy response not JSON: ${rawBody?.slice(0,200)}`);
+    }
     const content = data.choices[0]?.message?.content;
 
     if (!content) {
