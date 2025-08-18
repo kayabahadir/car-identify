@@ -53,29 +53,7 @@ const SettingsScreen = ({ navigation }) => {
     navigation.navigate('Purchase');
   };
 
-  const handleResetData = () => {
-    Alert.alert(
-      t('resetDataTitle'),
-      t('resetDataMessage'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('resetButton'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await CreditService.resetForTesting();
-              Alert.alert(t('resetSuccess'), t('resetSuccessMessage'), [
-                { text: t('ok'), onPress: () => navigation.navigate('Home') }
-              ]);
-            } catch (error) {
-              Alert.alert(t('resetError'), t('resetErrorMessage'));
-            }
-          }
-        }
-      ]
-    );
-  };
+  // Test özelliği kaldırıldı - production için güvenli
 
   const handleContact = () => {
     Alert.alert(
@@ -189,14 +167,7 @@ const SettingsScreen = ({ navigation }) => {
       onPress: handleContact,
       showArrow: true
     },
-    {
-      icon: 'trash',
-      title: t('resetData'),
-      subtitle: t('clearAllDataTest'),
-      onPress: handleResetData,
-      showArrow: true,
-      danger: true
-    }
+    // Test özelliği kaldırıldı - production için güvenli
   ];
 
   if (loading) {
@@ -313,7 +284,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 30,
     paddingBottom: 20,
     backgroundColor: 'white',
     borderBottomWidth: 1,
@@ -362,6 +333,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+    marginTop: 10,
   },
   creditsHeader: {
     flexDirection: 'row',
@@ -491,7 +463,7 @@ const styles = StyleSheet.create({
   // App Info
   appInfo: {
     alignItems: 'center',
-    padding: 20,
+    padding: 70,
   },
   appInfoTitle: {
     fontSize: 18,
