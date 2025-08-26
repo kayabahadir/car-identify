@@ -8,17 +8,38 @@ import {
   ScrollView,
   Alert,
   Linking,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
 
+// Responsive design utilities
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTablet = screenWidth >= 768; // iPad threshold
+const isLargeTablet = screenWidth >= 1024; // Large iPad threshold
+
+// Responsive dimensions
+const getResponsiveValue = (phoneValue, tabletValue, largeTabletValue = tabletValue) => {
+  if (isLargeTablet) return largeTabletValue;
+  if (isTablet) return tabletValue;
+  return phoneValue;
+};
+
+// Responsive spacing
+const getSpacing = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getFontSize = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getPadding = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getMargin = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getBorderRadius = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+
 const SettingsScreen = ({ navigation }) => {
   const { language, toggleLanguage, t } = useLanguage();
   const [userStats, setUserStats] = useState(null);
   const [creditHistory, setCreditHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [creditInfo, setCreditInfo] = useState({ canUse: false, type: 'none', creditsLeft: 0, message: '' });
 
   useEffect(() => {
     loadUserData();
@@ -35,13 +56,15 @@ const SettingsScreen = ({ navigation }) => {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      const [stats, history] = await Promise.all([
+      const [stats, history, creditStatus] = await Promise.all([
         CreditService.getUserStats(),
-        CreditService.getCreditHistory()
+        CreditService.getCreditHistory(),
+        CreditService.canAnalyze()
       ]);
       
       setUserStats(stats);
       setCreditHistory(history);
+      setCreditInfo(creditStatus);
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -73,6 +96,63 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleTermsOfService = () => {
     navigation.navigate('Legal', { document: 'terms' });
+  };
+
+  // Geliştirici modu fonksiyonları
+  const enableDeveloperMode = async () => {
+    try {
+      const success = await CreditService.enableDeveloperMode();
+      if (success) {
+        Alert.alert('Geliştirici Modu', 'Geliştirici modu aktif edildi! Artık sınırsız analiz yapabilirsiniz.');
+        loadUserData();
+      } else {
+        Alert.alert('Hata', 'Geliştirici modu aktif edilemedi.');
+      }
+    } catch (error) {
+      console.error('Error enabling developer mode:', error);
+      Alert.alert('Hata', 'Geliştirici modu aktif edilirken hata oluştu.');
+    }
+  };
+
+  const disableDeveloperMode = async () => {
+    try {
+      const success = await CreditService.disableDeveloperMode();
+      if (success) {
+        Alert.alert('Geliştirici Modu', 'Geliştirici modu devre dışı bırakıldı.');
+        loadUserData();
+      } else {
+        Alert.alert('Hata', 'Geliştirici modu devre dışı bırakılamadı.');
+      }
+    } catch (error) {
+      console.error('Error disabling developer mode:', error);
+      Alert.alert('Hata', 'Geliştirici modu devre dışı bırakılırken hata oluştu.');
+    }
+  };
+
+  const addTestCredits = async () => {
+    try {
+      const newCredits = await CreditService.addDeveloperCredits(100);
+      if (newCredits !== false) {
+        Alert.alert('Test Kredileri', `100 test kredisi eklendi! Toplam: ${newCredits} kredi`);
+        loadUserData();
+      } else {
+        Alert.alert('Hata', 'Test kredileri eklenemedi.');
+      }
+    } catch (error) {
+      console.error('Error adding test credits:', error);
+      Alert.alert('Hata', 'Test kredileri eklenirken hata oluştu.');
+    }
+  };
+
+  const resetForTesting = async () => {
+    try {
+      await CreditService.resetForTesting();
+      Alert.alert('Test Sıfırlama', 'Tüm veriler test için sıfırlandı!');
+      loadUserData();
+    } catch (error) {
+      console.error('Error resetting for testing:', error);
+      Alert.alert('Hata', 'Test sıfırlama sırasında hata oluştu.');
+    }
   };
 
 
@@ -146,6 +226,33 @@ const SettingsScreen = ({ navigation }) => {
       onPress: toggleLanguage,
       showArrow: false
     },
+    // Geliştirici modu - sadece development ortamında görünür
+    ...__DEV__ ? [{
+      icon: 'flask',
+      title: '🧪 Geliştirici Modu',
+      subtitle: creditInfo.type === 'developer' ? 'Sınırsız analiz aktif' : 'Test için geliştirici modunu aktif edin',
+      onPress: () => {
+        // Geliştirici modu seçenekleri göster
+        Alert.alert(
+          '🧪 Geliştirici Modu',
+          creditInfo.type === 'developer' 
+            ? 'Geliştirici modu aktif. Ne yapmak istiyorsunuz?' 
+            : 'Test için geliştirici modunu aktif edin',
+          [
+            { text: 'İptal', style: 'cancel' },
+            ...(creditInfo.type !== 'developer' ? [
+              { text: 'Geliştirici Modu Aktif Et', onPress: enableDeveloperMode }
+            ] : [
+              { text: 'Geliştirici Modu Kapat', onPress: disableDeveloperMode }
+            ]),
+            { text: '+100 Test Kredisi', onPress: addTestCredits },
+            { text: 'Test Verilerini Sıfırla', onPress: resetForTesting, style: 'destructive' }
+          ]
+        );
+      },
+      showArrow: true,
+      isDeveloper: true
+    }] : [],
     {
       icon: 'shield-checkmark',
       title: t('privacyPolicy'),
@@ -167,7 +274,6 @@ const SettingsScreen = ({ navigation }) => {
       onPress: handleContact,
       showArrow: true
     },
-    // Test özelliği kaldırıldı - production için güvenli
   ];
 
   if (loading) {
@@ -235,17 +341,25 @@ const SettingsScreen = ({ navigation }) => {
             {menuItems.map((item, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.menuItem, item.danger && styles.dangerMenuItem]}
+                style={[
+                  styles.menuItem, 
+                  item.danger && styles.dangerMenuItem,
+                  item.isDeveloper && styles.developerMenuItem
+                ]}
                 onPress={item.onPress}
               >
                 <View style={styles.menuItemLeft}>
                   <Ionicons 
                     name={item.icon} 
                     size={20} 
-                    color={item.danger ? '#dc2626' : '#4f46e5'} 
+                    color={item.danger ? '#dc2626' : item.isDeveloper ? '#3b82f6' : '#4f46e5'} 
                   />
                   <View style={styles.menuItemText}>
-                    <Text style={[styles.menuItemTitle, item.danger && styles.dangerText]}>
+                    <Text style={[
+                      styles.menuItemTitle, 
+                      item.danger && styles.dangerText,
+                      item.isDeveloper && styles.developerText
+                    ]}>
                       {item.title}
                     </Text>
                     <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
@@ -278,23 +392,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+    // iPad Mini için ek optimizasyon
+    ...(isTablet && !isLargeTablet && { 
+      paddingBottom: getPadding(20, 30, 40)
+    }),
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 20,
+    paddingHorizontal: getPadding(20, 30, 40),
+    paddingTop: getPadding(30, 40, 50),
+    paddingBottom: getPadding(20, 25, 30),
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingTop: getPadding(20, 30, 40),
+      paddingBottom: getPadding(15, 20, 25)
+    }),
   },
   backButton: {
-    padding: 8,
+    padding: getPadding(8, 12, 15),
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
     color: '#1a1a1a',
   },
@@ -311,13 +434,21 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      marginBottom: 16
+    }),
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 16,
-    paddingHorizontal: 20,
+    marginBottom: getMargin(16, 20, 25),
+    paddingHorizontal: getPadding(20, 30, 40),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      marginBottom: getMargin(8, 12, 16)
+    }),
   },
   // Credits Summary
   creditsSummary: {
@@ -325,15 +456,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'white',
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 16,
+    marginHorizontal: getMargin(20, 30, 40),
+    padding: getPadding(20, 30, 40),
+    borderRadius: getBorderRadius(16, 20, 24),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: getSpacing(8, 12, 16),
     elevation: 5,
-    marginTop: 10,
+    marginTop: getMargin(10, 15, 20),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(12, 20, 28),
+      marginTop: getMargin(6, 10, 14)
+    }),
   },
   creditsHeader: {
     flexDirection: 'row',
@@ -343,23 +479,25 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   creditsNumber: {
-    fontSize: 28,
+    fontSize: getFontSize(28, 36, 44),
     fontWeight: 'bold',
     color: '#1a1a1a',
   },
   creditsLabel: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     color: '#6b7280',
   },
   buyButton: {
     backgroundColor: '#4f46e5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: getPadding(16, 20, 25),
+    paddingVertical: getPadding(8, 12, 15),
+    borderRadius: getBorderRadius(12, 16, 20),
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(40, 55, 70),
   },
   buyButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
   },
 
@@ -414,6 +552,10 @@ const styles = StyleSheet.create({
   emptyHistory: {
     alignItems: 'center',
     padding: 40,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: 30
+    }),
   },
   emptyHistoryText: {
     fontSize: 14,
@@ -438,6 +580,12 @@ const styles = StyleSheet.create({
   dangerMenuItem: {
     backgroundColor: '#fef2f2',
   },
+  developerMenuItem: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderStyle: 'dashed',
+  },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,6 +603,10 @@ const styles = StyleSheet.create({
   dangerText: {
     color: '#dc2626',
   },
+  developerText: {
+    color: '#3b82f6',
+    fontWeight: '700',
+  },
   menuItemSubtitle: {
     fontSize: 12,
     color: '#6b7280',
@@ -464,22 +616,38 @@ const styles = StyleSheet.create({
   appInfo: {
     alignItems: 'center',
     padding: 70,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(40, 50, 60)
+    }),
   },
   appInfoTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1a1a1a',
+    // iPad Mini için daha küçük
+    ...(isTablet && !isLargeTablet && { 
+      fontSize: getFontSize(14, 16, 18)
+    }),
   },
   appInfoVersion: {
     fontSize: 14,
     color: '#6b7280',
     marginTop: 4,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      marginTop: 2
+    }),
   },
   appInfoDescription: {
     fontSize: 12,
     color: '#9ca3af',
     marginTop: 8,
     textAlign: 'center',
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      marginTop: 4
+    }),
   },
 });
 

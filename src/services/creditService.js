@@ -30,6 +30,17 @@ class CreditService {
    */
   static async canAnalyze() {
     try {
+      // Önce geliştirici modu kontrolü
+      const isDevMode = await this.isDeveloperModeEnabled();
+      if (isDevMode) {
+        return { 
+          canUse: true, 
+          type: 'developer', 
+          creditsLeft: 999999, // Sınırsız
+          message: 'Geliştirici modu aktif - Sınırsız analiz!'
+        };
+      }
+
       // Önce ücretsiz hak kontrolü
       const canUseFree = await FirstTimeService.canUseFreeAnalysis();
       if (canUseFree) {
@@ -72,7 +83,12 @@ class CreditService {
     try {
       const canUse = await this.canAnalyze();
       
-      if (canUse.type === 'free') {
+      if (canUse.type === 'developer') {
+        // Geliştirici modunda kredi kullanılmaz
+        await this.logCreditHistory('developer_analysis_used', 0, 'Geliştirici modunda analiz kullanıldı');
+        console.log('✅ Developer mode analysis used');
+        return true;
+      } else if (canUse.type === 'free') {
         await FirstTimeService.markFreeAnalysisUsed();
         await this.logCreditHistory('free_analysis_used', 0, 'Ücretsiz analiz kullanıldı');
         console.log('✅ Free analysis used');
@@ -310,6 +326,91 @@ class CreditService {
     } catch (error) {
       console.error('Error getting debug info:', error);
       return null;
+    }
+  }
+
+  /**
+   * Geliştirici modu için test kredileri ekler
+   * Sadece geliştirme ortamında kullanılmalıdır
+   */
+  static async addDeveloperCredits(amount = 100) {
+    try {
+      // Geliştirici modu kontrolü
+      if (!__DEV__) {
+        console.warn('⚠️ Developer credits can only be added in development mode');
+        return false;
+      }
+
+      const currentCredits = await this.getCredits();
+      const newCredits = currentCredits + amount;
+      
+      await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
+      await this.logCreditHistory('developer_credits_added', amount, `Geliştirici test kredileri: ${amount} kredi`);
+      
+      console.log(`✅ Developer credits added: ${amount}. Total: ${newCredits}`);
+      return newCredits;
+    } catch (error) {
+      console.error('Error adding developer credits:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Geliştirici modu için sınırsız analiz hakkı verir
+   * Sadece geliştirme ortamında kullanılmalıdır
+   */
+  static async enableDeveloperMode() {
+    try {
+      if (!__DEV__) {
+        console.warn('⚠️ Developer mode can only be enabled in development mode');
+        return false;
+      }
+
+      // Geliştirici modu için özel bir flag ekle
+      await AsyncStorage.setItem('developerMode', 'true');
+      await AsyncStorage.setItem('developerModeEnabledAt', new Date().toISOString());
+      
+      console.log('✅ Developer mode enabled');
+      return true;
+    } catch (error) {
+      console.error('Error enabling developer mode:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Geliştirici modunun aktif olup olmadığını kontrol eder
+   */
+  static async isDeveloperModeEnabled() {
+    try {
+      if (!__DEV__) return false;
+      
+      const developerMode = await AsyncStorage.getItem('developerMode');
+      return developerMode === 'true';
+    } catch (error) {
+      console.error('Error checking developer mode:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Geliştirici modunu devre dışı bırakır
+   */
+  static async disableDeveloperMode() {
+    try {
+      if (!__DEV__) {
+        console.warn('⚠️ Developer mode can only be disabled in development mode');
+        return false;
+      }
+
+      await AsyncStorage.removeItem('developerMode');
+      await AsyncStorage.removeItem('developerModeEnabledAt');
+      
+      console.log('✅ Developer mode disabled');
+      return true;
+    } catch (error) {
+      console.error('Error disabling developer mode:', error);
+      return false;
     }
   }
 }

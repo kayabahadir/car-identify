@@ -9,11 +9,31 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { identifyVehicle, getMockVehicleData, convertToLegacyFormat } from '../services/openaiService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { saveAnalysisToHistory } from '../services/historyService';
+
+// Responsive design utilities
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTablet = screenWidth >= 768; // iPad threshold
+const isLargeTablet = screenWidth >= 1024; // Large iPad threshold
+
+// Responsive dimensions
+const getResponsiveValue = (phoneValue, tabletValue, largeTabletValue = tabletValue) => {
+  if (isLargeTablet) return largeTabletValue;
+  if (isTablet) return tabletValue;
+  return phoneValue;
+};
+
+// Responsive spacing
+const getSpacing = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getFontSize = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getPadding = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getMargin = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getBorderRadius = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
 
 const ResultScreen = ({ navigation, route }) => {
   const { language, toggleLanguage, t } = useLanguage();
@@ -418,14 +438,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: getPadding(20, 30, 40),
+    paddingVertical: getPadding(15, 20, 25),
   },
   backButton: {
-    padding: 5,
+    padding: getPadding(5, 8, 10),
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
     color: '#1a1a1a',
   },
@@ -434,26 +454,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   languageButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: getPadding(12, 16, 20),
+    paddingVertical: getPadding(6, 8, 10),
     backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    marginRight: 10,
+    borderRadius: getBorderRadius(12, 16, 20),
+    marginRight: getMargin(10, 15, 20),
   },
   languageText: {
-    fontSize: 12,
+    fontSize: getFontSize(12, 14, 16),
     fontWeight: '600',
     color: '#374151',
   },
   themeButton: {
-    padding: 5,
+    padding: getPadding(5, 8, 10),
   },
   resultCard: {
     backgroundColor: 'white',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
+    marginHorizontal: getMargin(20, 30, 40),
+    marginBottom: getMargin(20, 25, 30),
+    borderRadius: getBorderRadius(16, 20, 24),
+    padding: getPadding(20, 30, 40),
     flexDirection: 'row',
     shadowColor: '#000',
     shadowOffset: {
@@ -461,15 +481,15 @@ const styles = StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: getSpacing(8, 12, 16),
     elevation: 5,
   },
   carImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: getSpacing(80, 120, 150),
+    height: getSpacing(80, 120, 150),
+    borderRadius: getBorderRadius(12, 16, 20),
     overflow: 'hidden',
-    marginRight: 15,
+    marginRight: getMargin(15, 20, 25),
   },
   carImage: {
     width: '100%',
@@ -481,15 +501,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   carName: {
-    fontSize: 20,
+    fontSize: getFontSize(20, 24, 28),
     fontWeight: 'bold',
     color: '#1a1a1a',
-    marginBottom: 5,
+    marginBottom: getMargin(5, 8, 10),
   },
   carYear: {
-    fontSize: 16,
+    fontSize: getFontSize(16, 18, 20),
     color: '#666',
-    marginBottom: 10,
+    marginBottom: getMargin(10, 15, 20),
   },
   confidenceContainer: {
     flexDirection: 'row',
@@ -497,10 +517,10 @@ const styles = StyleSheet.create({
   },
   confidenceBar: {
     flex: 1,
-    height: 6,
+    height: getSpacing(6, 8, 10),
     backgroundColor: '#e5e7eb',
-    borderRadius: 3,
-    marginRight: 10,
+    borderRadius: getSpacing(3, 4, 5),
+    marginRight: getMargin(10, 15, 20),
   },
   confidenceFill: {
     height: '100%',

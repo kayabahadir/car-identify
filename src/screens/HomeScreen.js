@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -15,6 +15,25 @@ import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
 import IAPService from '../services/iapService';
+
+// Responsive design utilities
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTablet = screenWidth >= 768; // iPad threshold
+const isLargeTablet = screenWidth >= 1024; // Large iPad threshold
+
+// Responsive dimensions
+const getResponsiveValue = (phoneValue, tabletValue, largeTabletValue = tabletValue) => {
+  if (isLargeTablet) return largeTabletValue;
+  if (isTablet) return tabletValue;
+  return phoneValue;
+};
+
+// Responsive spacing
+const getSpacing = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getFontSize = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getPadding = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getMargin = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
+const getBorderRadius = (phone, tablet, largeTablet = tablet) => getResponsiveValue(phone, tablet, largeTablet);
 
 const HomeScreen = ({ navigation, route }) => {
   const { language, toggleLanguage, t } = useLanguage();
@@ -61,6 +80,8 @@ const HomeScreen = ({ navigation, route }) => {
       console.error('Error checking first time:', error);
     }
   };
+
+  // Geliştirici modu fonksiyonları Settings'e taşındı
 
   // Onboarding'den gelen satın alma işlemini handle et
   const handleOnboardingPurchase = async (packageId) => {
@@ -243,7 +264,7 @@ const HomeScreen = ({ navigation, route }) => {
   const handleUploadFromGallery = () => handleAnalysisAttempt(actualUploadFromGallery);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{t('appTitle')}</Text>
@@ -311,6 +332,13 @@ const HomeScreen = ({ navigation, route }) => {
           <Text style={styles.statNumber}>97.8%</Text>
           <Text style={styles.statLabel}>{t('accuracyRate')}</Text>
         </View>
+        {/* iPad'de ekstra stat box ekle */}
+        {isTablet && (
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>24/7</Text>
+            <Text style={styles.statLabel}>{t('support') || 'Destek'}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.aiSystemContainer}>
@@ -335,6 +363,8 @@ const HomeScreen = ({ navigation, route }) => {
           <Text style={styles.confidencePercent}>98%</Text>
         </View>
       </View>
+
+
 
       <View style={styles.actionContainer}>
         <TouchableOpacity 
@@ -363,37 +393,104 @@ const HomeScreen = ({ navigation, route }) => {
           <Text style={styles.historyText}>{t('history')}</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
-  );
+
+      {/* Geliştirici modu artık Settings'de */}
+      {false && (
+        <View style={styles.developerContainer}>
+          <Text style={styles.developerTitle}>🧪 Geliştirici Modu</Text>
+          <Text style={styles.developerSubtitle}>
+            {creditInfo.type === 'developer' 
+              ? 'Sınırsız analiz aktif!' 
+              : 'Test için geliştirici modunu aktif edin'
+            }
+          </Text>
+          
+          <View style={styles.developerButtons}>
+            {creditInfo.type !== 'developer' ? (
+              <TouchableOpacity 
+                style={styles.developerButton} 
+                onPress={enableDeveloperMode}
+              >
+                <Ionicons name="rocket" size={16} color="white" />
+                <Text style={styles.developerButtonText}>Geliştirici Modu Aktif Et</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.developerButton} 
+                onPress={disableDeveloperMode}
+              >
+                <Ionicons name="close-circle" size={16} color="white" />
+                <Text style={styles.developerButtonText}>Geliştirici Modu Kapat</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.developerButtonSecondary} 
+              onPress={addTestCredits}
+            >
+              <Ionicons name="add-circle" size={16} color="#333" />
+              <Text style={styles.developerButtonTextSecondary}>+100 Test Kredisi</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.developerButtonSecondary} 
+              onPress={resetForTesting}
+            >
+              <Ionicons name="refresh" size={16} color="#333" />
+              <Text style={styles.developerButtonTextSecondary}>Test Verilerini Sıfırla</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+     </View>
+   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    // Web'de scroll için flex: 1 kaldırıldı
     backgroundColor: '#f8f9fa',
-    paddingHorizontal: 24,
-    paddingTop: 50,
-    justifyContent: 'flex-start',
+    paddingHorizontal: getPadding(24, 40, 60),
+    paddingTop: getPadding(50, 60, 80),
+    paddingBottom: getPadding(50, 60, 80), // Alt padding eklendi
+    minHeight: '100vh', // Web'de tam yükseklik
+    // iPad Mini için ek optimizasyon
+    overflow: 'auto', // Web'de scroll için
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingTop: getPadding(20, 30, 40),
+      paddingBottom: getPadding(20, 30, 40)
+    }),
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 30,
+    marginTop: getMargin(40, 50, 60),
+    marginBottom: getMargin(30, 40, 50),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      marginTop: getMargin(20, 30, 40),
+      marginBottom: getMargin(20, 30, 40)
+    }),
   },
   titleContainer: {
     flex: 1,
-    paddingLeft: 10,
+    paddingLeft: getPadding(10, 15, 20),
   },
   title: {
-    fontSize: 32,
+    fontSize: getFontSize(32, 40, 48),
     fontWeight: 'bold',
     color: '#1a1a1a',
-    marginBottom: 5,
+    marginBottom: getMargin(5, 8, 10),
+    // iPad Mini için daha küçük
+    ...(isTablet && !isLargeTablet && { 
+      fontSize: getFontSize(24, 32, 40),
+      marginBottom: getMargin(3, 6, 8)
+    }),
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: getFontSize(16, 18, 20),
     color: '#666',
   },
   headerButtons: {
@@ -401,74 +498,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   languageButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: getPadding(12, 16, 20),
+    paddingVertical: getPadding(6, 8, 10),
     backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    marginRight: 10,
+    borderRadius: getBorderRadius(12, 16, 20),
+    marginRight: getMargin(10, 15, 20),
   },
   languageText: {
-    fontSize: 12,
+    fontSize: getFontSize(12, 14, 16),
     fontWeight: '600',
     color: '#374151',
   },
   settingsButton: {
-    padding: 10,
+    padding: getPadding(10, 12, 15),
   },
   statsContainer: {
-    flexDirection: 'row',
+    flexDirection: isTablet ? 'row' : 'row',
     justifyContent: 'space-between',
-    marginBottom: 40,
-    paddingHorizontal: 4,
+    marginBottom: getMargin(40, 50, 60),
+    paddingHorizontal: getPadding(4, 8, 12),
+    // iPad'de daha geniş spacing
+    gap: getSpacing(0, 20, 30),
+    // iPad'de wrap yap
+    flexWrap: isTablet ? 'wrap' : 'nowrap',
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { marginBottom: getMargin(20, 30, 40) }),
   },
   statBox: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: getBorderRadius(16, 20, 24),
+    padding: getPadding(20, 30, 40),
     alignItems: 'center',
-    flex: 0.48,
+    flex: isTablet ? 0.31 : 0.48, // iPad'de 3 box için
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: getSpacing(8, 12, 16),
     elevation: 5,
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(80, 120, 150),
+    // iPad'de margin ekle
+    marginBottom: isTablet ? getMargin(0, 10, 15) : 0,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(16, 24, 32),
+      minHeight: getSpacing(60, 100, 130)
+    }),
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: getFontSize(24, 32, 40),
     fontWeight: 'bold',
     color: '#1a1a1a',
-    marginBottom: 5,
+    marginBottom: getMargin(5, 8, 10),
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     color: '#666',
   },
   aiSystemContainer: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 40,
-    marginHorizontal: 4,
+    borderRadius: getBorderRadius(16, 20, 24),
+    padding: getPadding(24, 32, 40),
+    marginBottom: getMargin(40, 50, 60),
+    marginHorizontal: getMargin(4, 8, 12),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: getSpacing(8, 12, 16),
     elevation: 5,
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(16, 24, 32),
+      marginBottom: getMargin(20, 30, 40) 
+    }),
   },
   aiSystemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: getMargin(10, 15, 20),
   },
   aiSystemTitle: {
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
     color: '#1a1a1a',
   },
@@ -476,134 +593,169 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#e8f5e8',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: getPadding(12, 16, 20),
+    paddingVertical: getPadding(4, 6, 8),
+    borderRadius: getBorderRadius(12, 16, 20),
   },
   onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: getSpacing(8, 10, 12),
+    height: getSpacing(8, 10, 12),
+    borderRadius: getSpacing(4, 5, 6),
     backgroundColor: '#4ade80',
-    marginRight: 6,
+    marginRight: getMargin(6, 8, 10),
   },
   onlineText: {
-    fontSize: 12,
+    fontSize: getFontSize(12, 14, 16),
     color: '#16a34a',
     fontWeight: '500',
   },
   aiSystemDescription: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     color: '#666',
-    marginBottom: 5,
+    marginBottom: getMargin(5, 8, 10),
   },
   aiSystemUpdate: {
-    fontSize: 12,
+    fontSize: getFontSize(12, 14, 16),
     color: '#888',
-    marginBottom: 15,
+    marginBottom: getMargin(15, 20, 25),
   },
   confidenceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   confidenceLabel: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     color: '#666',
-    marginRight: 10,
+    marginRight: getMargin(10, 15, 20),
   },
   confidenceBar: {
     flex: 1,
-    height: 6,
+    height: getSpacing(6, 8, 10),
     backgroundColor: '#e5e7eb',
-    borderRadius: 3,
-    marginRight: 10,
+    borderRadius: getSpacing(3, 4, 5),
+    marginRight: getMargin(10, 15, 20),
   },
   confidenceFill: {
     width: '98%',
     height: '100%',
     backgroundColor: '#1a1a1a',
-    borderRadius: 3,
+    borderRadius: getSpacing(3, 4, 5),
   },
   confidencePercent: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
     color: '#1a1a1a',
   },
   actionContainer: {
-    flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingBottom: 20,
+    paddingHorizontal: getPadding(4, 8, 12),
+    paddingBottom: getPadding(20, 30, 40),
+    // Web'de scroll için margin kaldırıldı
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingBottom: getPadding(15, 25, 35)
+    }),
   },
   takePhotoButton: {
     backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    paddingVertical: 22,
+    borderRadius: getBorderRadius(16, 20, 24),
+    paddingVertical: getPadding(22, 28, 35),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: getMargin(16, 20, 25),
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(60, 80, 100),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(18, 24, 30),
+      minHeight: getSpacing(50, 70, 90)
+    }),
   },
   takePhotoText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
-    marginLeft: 10,
+    marginLeft: getMargin(10, 15, 20),
   },
   uploadButton: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    paddingVertical: 22,
+    borderRadius: getBorderRadius(16, 20, 24),
+    paddingVertical: getPadding(22, 28, 35),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(60, 80, 100),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(18, 24, 30),
+      minHeight: getSpacing(50, 70, 90)
+    }),
   },
   uploadText: {
     color: '#333',
-    fontSize: 18,
+    fontSize: getFontSize(18, 22, 26),
     fontWeight: '600',
-    marginLeft: 10,
+    marginLeft: getMargin(10, 15, 20),
   },
   historyButton: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 20,
+    borderRadius: getBorderRadius(12, 16, 20),
+    paddingVertical: getPadding(11, 15, 20),
+    paddingHorizontal: getPadding(20, 28, 35),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginTop: 16,
+    marginTop: getMargin(16, 20, 25),
     alignSelf: 'center',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(45, 60, 75),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(9, 13, 18),
+      paddingHorizontal: getPadding(16, 24, 30),
+      minHeight: getSpacing(40, 55, 70)
+    }),
   },
   historyText: {
     color: '#333',
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: getMargin(8, 12, 15),
   },
   // Kredi durumu stilleri
   creditContainer: {
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    marginBottom: getMargin(20, 25, 30),
+    paddingHorizontal: getPadding(4, 8, 12),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { marginBottom: getMargin(10, 15, 20) }),
   },
   creditBox: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: getBorderRadius(16, 20, 24),
+    padding: getPadding(20, 30, 40),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: getSpacing(8, 12, 16),
     elevation: 5,
     borderWidth: 1,
     borderColor: '#f0f0f0',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(100, 140, 180),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(12, 20, 28),
+      minHeight: getSpacing(60, 100, 140)
+    }),
   },
   creditBoxFree: {
     borderColor: '#4ade80',
@@ -612,41 +764,130 @@ const styles = StyleSheet.create({
   creditHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: getMargin(8, 12, 15),
   },
   creditTitle: {
-    fontSize: 16,
+    fontSize: getFontSize(16, 18, 20),
     fontWeight: '600',
     color: '#1a1a1a',
-    marginLeft: 8,
+    marginLeft: getMargin(8, 12, 15),
   },
   creditTitleFree: {
     color: '#16a34a',
   },
   creditNumber: {
-    fontSize: 28,
+    fontSize: getFontSize(28, 36, 44),
     fontWeight: 'bold',
     color: '#1a1a1a',
-    marginBottom: 4,
+    marginBottom: getMargin(4, 6, 8),
   },
   creditNumberFree: {
     color: '#16a34a',
   },
   creditMessage: {
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     color: '#666',
-    marginBottom: 12,
+    marginBottom: getMargin(12, 16, 20),
   },
   buyCreditsButton: {
     backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    borderRadius: getBorderRadius(12, 16, 20),
+    paddingVertical: getPadding(12, 16, 20),
+    paddingHorizontal: getPadding(20, 28, 35),
     alignItems: 'center',
+    justifyContent: 'center',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(45, 60, 75),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(10, 14, 18),
+      paddingHorizontal: getPadding(16, 24, 30),
+      minHeight: getSpacing(40, 55, 70)
+    }),
+  },
+  // Geliştirici modu stilleri
+  developerContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: getBorderRadius(16, 20, 24),
+    padding: getPadding(20, 30, 40),
+    marginTop: getMargin(20, 25, 30),
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      padding: getPadding(16, 24, 32),
+      marginTop: getMargin(15, 20, 25)
+    }),
+  },
+  developerTitle: {
+    fontSize: getFontSize(18, 22, 26),
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    marginBottom: getMargin(8, 12, 15),
+    textAlign: 'center',
+  },
+  developerSubtitle: {
+    fontSize: getFontSize(14, 16, 18),
+    color: '#666',
+    marginBottom: getMargin(16, 20, 25),
+    textAlign: 'center',
+  },
+  developerButtons: {
+    flexDirection: 'column',
+    gap: getSpacing(12, 16, 20),
+  },
+  developerButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: getBorderRadius(12, 16, 20),
+    paddingVertical: getPadding(12, 16, 20),
+    paddingHorizontal: getPadding(20, 28, 35),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(45, 60, 75),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(10, 14, 18),
+      paddingHorizontal: getPadding(16, 24, 30),
+      minHeight: getSpacing(40, 55, 70)
+    }),
+  },
+  developerButtonSecondary: {
+    backgroundColor: 'white',
+    borderRadius: getBorderRadius(12, 16, 20),
+    paddingVertical: getPadding(12, 16, 20),
+    paddingHorizontal: getPadding(20, 28, 35),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(45, 60, 75),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(10, 14, 18),
+      paddingHorizontal: getPadding(16, 24, 30),
+      minHeight: getSpacing(40, 55, 70)
+    }),
+  },
+  developerButtonText: {
+    color: 'white',
+    fontSize: getFontSize(14, 16, 18),
+    fontWeight: '600',
+    marginLeft: getMargin(8, 12, 15),
+  },
+  developerButtonTextSecondary: {
+    color: '#333',
+    fontSize: getFontSize(14, 16, 18),
+    fontWeight: '600',
+    marginLeft: getMargin(8, 12, 15),
   },
   buyCreditsText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
   },
   purchaseLoadingOverlay: {
@@ -656,14 +897,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 16,
+    borderRadius: getBorderRadius(16, 20, 24),
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
   purchaseLoadingText: {
-    marginTop: 10,
-    fontSize: 14,
+    marginTop: getMargin(10, 15, 20),
+    fontSize: getFontSize(14, 16, 18),
     color: '#4f46e5',
     fontWeight: '600',
   },

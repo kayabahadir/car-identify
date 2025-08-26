@@ -2,7 +2,7 @@
   "expo": {
     "name": "Car Identify",
     "slug": "car-identify",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "sdkVersion": "53.0.0",
     "platforms": [
