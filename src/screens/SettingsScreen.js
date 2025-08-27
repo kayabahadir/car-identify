@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
@@ -377,7 +378,9 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.appInfo}>
             <Text style={styles.appInfoTitle}>{t('appInfoTitle')}</Text>
-            <Text style={styles.appInfoVersion}>{t('appInfoVersion')}</Text>
+            <Text style={styles.appInfoVersion}>
+              {language === 'tr' ? 'Versiyon' : 'Version'} {Constants.expoConfig?.version || '1.0.1'}
+            </Text>
             <Text style={styles.appInfoDescription}>
               {t('appInfoDescription')}
             </Text>
