@@ -8,12 +8,17 @@ import {
   ScrollView,
   Dimensions,
   Animated,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import FirstTimeService from '../services/firstTimeService';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Device detection helpers
+const isTablet = width >= 768;
+const isLargeTablet = width >= 1024;
 
 const OnboardingScreen = ({ navigation }) => {
   const { language, t, toggleLanguage } = useLanguage();
@@ -241,32 +246,36 @@ const OnboardingScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       {/* Header with Progress Bar and Language Toggle */}
       <View style={styles.headerContainer}>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-          <Animated.View
-            style={[
-              styles.progressFill,
-              {
-                width: progressAnim.interpolate({
-                  inputRange: [0, onboardingData.length - 1],
-                  outputRange: ['25%', '100%'],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ]}
-          />
+        {/* Top buttons row */}
+        <View style={styles.topButtonsContainer}>
+          {/* Language Toggle */}
+          <TouchableOpacity style={styles.languageToggle} onPress={toggleLanguage}>
+            <Text style={styles.languageText}>{language === 'tr' ? 'EN' : 'TR'}</Text>
+          </TouchableOpacity>
+          
+          {/* Skip Button */}
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipText}>{language === 'tr' ? 'Atla' : 'Skip'}</Text>
+          </TouchableOpacity>
         </View>
         
-        {/* Language Toggle */}
-        <TouchableOpacity style={styles.languageToggle} onPress={toggleLanguage}>
-          <Text style={styles.languageText}>{language === 'tr' ? 'EN' : 'TR'}</Text>
-        </TouchableOpacity>
-        
-        {/* Skip Button */}
-        <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-          <Text style={styles.skipText}>{language === 'tr' ? 'Atla' : 'Skip'}</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Progress Container */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, onboardingData.length - 1],
+                    outputRange: ['25%', '100%'],
+                    extrapolate: 'clamp',
+                  }),
+                },
+              ]}
+            />
+          </View>
+        </View>
       </View>
 
       {/* Slides */}
@@ -356,9 +365,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   headerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingHorizontal: isTablet ? 40 : 20,
+    paddingTop: isTablet ? 40 : 60,
     paddingBottom: 20,
+  },
+  topButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: isTablet ? 20 : 15,
+    // iPad'de butonlar arası daha fazla boşluk
+    paddingHorizontal: isTablet ? 10 : 0,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -366,38 +383,41 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   languageToggle: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
     backgroundColor: '#4f46e5',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    zIndex: 10,
+    borderRadius: isTablet ? 10 : 8,
+    paddingVertical: isTablet ? 8 : 6,
+    paddingHorizontal: isTablet ? 16 : 12,
+    // iPad'de daha büyük dokunma alanı
+    minWidth: isTablet ? 60 : 'auto',
+    alignItems: 'center',
   },
   languageText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: isTablet ? 14 : 12,
     fontWeight: '600',
   },
   progressBar: {
     flex: 1,
-    height: 4,
+    height: isTablet ? 6 : 4,
     backgroundColor: '#e5e7eb',
-    borderRadius: 2,
-    marginRight: 16,
+    borderRadius: isTablet ? 3 : 2,
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#4f46e5',
-    borderRadius: 2,
+    borderRadius: isTablet ? 3 : 2,
   },
   skipButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: isTablet ? 16 : 12,
+    paddingVertical: isTablet ? 8 : 6,
+    // iPad'de daha büyük dokunma alanı
+    minWidth: isTablet ? 80 : 'auto',
+    alignItems: 'center',
+    borderRadius: isTablet ? 8 : 0,
+    backgroundColor: isTablet ? '#f8f9fa' : 'transparent',
   },
   skipText: {
-    fontSize: 14,
+    fontSize: isTablet ? 16 : 14,
     color: '#6b7280',
     fontWeight: '500',
   },
@@ -410,7 +430,8 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    maxWidth: 300,
+    maxWidth: isTablet ? 400 : 300,
+    // iPad'de daha geniş content alanı
   },
   iconContainer: {
     width: 96,
@@ -479,14 +500,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   pricingPreview: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: isTablet ? 'row' : 'row',
+    gap: isTablet ? 16 : 12,
     marginBottom: 20,
+    paddingHorizontal: isTablet ? 20 : 0,
+    // iPad'de kartların daha iyi hizalanması için
+    justifyContent: isTablet ? 'center' : 'space-between',
+    alignItems: 'flex-start',
   },
   pricingItem: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: isTablet ? 16 : 12,
+    padding: isTablet ? 16 : 14,
     alignItems: 'center',
     position: 'relative',
     shadowColor: '#000',
@@ -497,10 +522,19 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 2,
     borderColor: 'transparent',
+    // Tüm platformlarda sabit boyut
+    minHeight: isTablet ? 140 : 130,
+    maxHeight: isTablet ? 140 : 130,
+    justifyContent: 'space-between',
+    // iPad'de maksimum genişlik sınırı
+    maxWidth: isTablet ? 180 : 'auto',
+    minWidth: isTablet ? 160 : 'auto',
+    // Mobilde tik işareti için üst padding
+    paddingTop: isTablet ? 16 : 20,
   },
   popularPricingItem: {
     borderColor: '#7c3aed',
-    transform: [{ scale: 1.05 }],
+    // Sadece border ile ayırt edilsin, boyut farkı olmasın
   },
   selectedPricingItem: {
     borderColor: '#4f46e5',
@@ -509,33 +543,56 @@ const styles = StyleSheet.create({
   },
   selectedCheckmark: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: isTablet ? 8 : 6,
+    right: isTablet ? 8 : 6,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    // Mobilde yazıyla karışmaması için arka plan ve gölge
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   pricingCredits: {
-    fontSize: 14,
+    fontSize: isTablet ? 16 : 14,
     fontWeight: 'bold',
     color: '#1a1a1a',
+    textAlign: 'center',
+    // Mobilde tutarlı hizalama için
+    minHeight: isTablet ? 'auto' : 20,
   },
   pricingPrice: {
-    fontSize: 16,
+    fontSize: isTablet ? 18 : 16,
     color: '#7c3aed',
     fontWeight: 'bold',
     marginTop: 4,
+    textAlign: 'center',
+    // Mobilde fiyat hizalama problemi için sabit yükseklik
+    minHeight: isTablet ? 'auto' : 22,
+    lineHeight: isTablet ? 'auto' : 22,
   },
   pricingSubtext: {
-    fontSize: 10,
+    fontSize: isTablet ? 12 : 10,
     color: '#6b7280',
     marginTop: 2,
     textAlign: 'center',
+    // Text yüksekliği sabitlenmesi
+    minHeight: isTablet ? 32 : 28,
+    lineHeight: isTablet ? 16 : 14,
+    // Mobilde 2 satır text için alan
+    height: isTablet ? 32 : 28,
   },
   popularBadge: {
     position: 'absolute',
-    top: -8,
+    top: isTablet ? -8 : -6,
     backgroundColor: '#7c3aed',
-    paddingHorizontal: 6,
+    paddingHorizontal: isTablet ? 6 : 4,
     paddingVertical: 2,
     borderRadius: 6,
+    // Mobilde daha kompakt
+    left: '50%',
+    transform: [{ translateX: -25 }],
   },
   popularText: {
     fontSize: 8,
