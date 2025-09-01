@@ -24,7 +24,7 @@ const PurchaseScreen = ({ navigation }) => {
   // Kredi paketleri
   const packages = [
     {
-      id: 'credits_10_199',
+      id: 'com.caridentify.credits10',
       credits: 10,
       price: '$1.99',
       priceLocal: '₺59.99',
@@ -35,7 +35,7 @@ const PurchaseScreen = ({ navigation }) => {
       pricePerCredit: '$0.199'
     },
     {
-      id: 'credits_50_699',
+      id: 'com.caridentify.credits50',
       credits: 50,
       price: '$6.99',
       priceLocal: '₺199.99',
@@ -46,7 +46,7 @@ const PurchaseScreen = ({ navigation }) => {
       pricePerCredit: '$0.139'
     },
     {
-      id: 'credits_200_1999',
+      id: 'com.caridentify.credits200',
       credits: 200,
       price: '$19.99',
       priceLocal: '₺599.99',

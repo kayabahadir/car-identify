@@ -1,4 +1,4 @@
-// import * as InAppPurchases from 'expo-in-app-purchases'; // Geçici olarak devre dışı
+import * as InAppPurchases from 'expo-in-app-purchases';
 import { Alert, Platform } from 'react-native';
 import CreditService from './creditService';
 
@@ -8,12 +8,13 @@ import CreditService from './creditService';
 class IAPService {
   static isInitialized = false;
   static products = [];
+  static purchaseListener = null;
 
-  // Ürün ID'leri - App Store Connect ve Google Play Console'da tanımlanacak
+  // Ürün ID'leri - App Store Connect'te tanımlanmış olanlar
   static PRODUCT_IDS = {
-    CREDITS_10: Platform.OS === 'ios' ? 'com.caridentify.credits10' : 'credits_10_199',
-    CREDITS_50: Platform.OS === 'ios' ? 'com.caridentify.credits50' : 'credits_50_699', 
-    CREDITS_200: Platform.OS === 'ios' ? 'com.caridentify.credits200' : 'credits_200_1999'
+    CREDITS_10: 'com.caridentify.credits10',
+    CREDITS_50: 'com.caridentify.credits50', 
+    CREDITS_200: 'com.caridentify.credits200'
   };
 
   // Kredi paketleri mapping
@@ -24,7 +25,7 @@ class IAPService {
   };
 
   /**
-   * IAP servisini başlatır (DEMO MODE)
+   * IAP servisini başlatır
    */
   static async initialize() {
     try {
@@ -32,60 +33,125 @@ class IAPService {
         return true;
       }
 
-      console.log('🎯 Demo mode: Simulating IAP initialization...');
+      if (__DEV__) {
+        console.log('🔧 Initializing In-App Purchases...');
+      }
       
-      // Demo mode - gerçek IAP başlatmıyoruz
-      this.isInitialized = false; // Demo mode'da false tutuyoruz
-      console.log('⚠️ IAP running in demo mode');
+      // IAP servisi ile bağlantı kur
+      await InAppPurchases.connectAsync();
       
-      return false; // Demo mode'da false döndürüyoruz
+      // Purchase listener'ı ayarla
+      this.setPurchaseListener();
+      
+      // Ürünleri yükle
+      await this.loadProducts();
+      
+      this.isInitialized = true;
+      
+      if (__DEV__) {
+        console.log('✅ IAP Service initialized successfully');
+      }
+      
+      return true;
     } catch (error) {
       console.error('❌ Failed to initialize In-App Purchases:', error);
+      this.isInitialized = false;
       return false;
     }
   }
 
   /**
-   * Mevcut ürünleri yükler (DEMO MODE)
+   * Mevcut ürünleri yükler
    */
   static async loadProducts() {
     try {
-      console.log('🎯 Demo mode: Simulating product loading...');
+      if (__DEV__) {
+        console.log('📦 Loading IAP products...');
+      }
       
-      // Demo mode - sabit ürünler döndürüyoruz
-      this.products = [];
-      console.log('⚠️ Demo mode: No real products loaded');
+      const productIds = Object.values(this.PRODUCT_IDS);
+      const { results: products } = await InAppPurchases.getProductsAsync(productIds);
+      
+      this.products = products || [];
+      
+      if (__DEV__) {
+        console.log(`📦 Loaded ${this.products.length} products:`, 
+          this.products.map(p => ({ id: p.productId, price: p.price }))
+        );
+      }
       
       return this.products;
     } catch (error) {
       console.error('❌ Failed to load products:', error);
+      this.products = [];
       return [];
     }
   }
 
   /**
-   * Belirli bir ürünü satın alır (DEMO MODE)
+   * Belirli bir ürünü satın alır
    */
   static async purchaseProduct(productId) {
     try {
-      console.log('🎯 Demo mode: Simulating purchase for:', productId);
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      if (__DEV__) {
+        console.log('💳 Initiating purchase for:', productId);
+      }
       
-      // Demo mode'da gerçek satın alma yapmıyoruz
-      // Bu fonksiyon asla çağrılmamalı çünkü isAvailable() false döndürüyor
-      throw new Error('Demo mode: Real purchase not available');
+      // Gerçek satın alma işlemi
+      await InAppPurchases.purchaseItemAsync(productId);
+      
+      if (__DEV__) {
+        console.log('💳 Purchase request sent for:', productId);
+      }
+      
+      // Purchase listener otomatik olarak sonucu işleyecek
       
     } catch (error) {
-      console.error('❌ Demo purchase failed:', error);
-      throw error;
+      console.error('❌ Purchase failed:', error);
+      
+      // Kullanıcı iptali vs. için özel mesajlar
+      if (error.code === InAppPurchases.IAPErrorCode.PAYMENT_CANCELLED) {
+        throw new Error('Satın alma iptal edildi');
+      } else if (error.code === InAppPurchases.IAPErrorCode.PAYMENT_NOT_ALLOWED) {
+        throw new Error('Satın alma işlemi bu cihazda izin verilmiyor');
+      } else {
+        throw new Error(error.message || 'Satın alma işlemi başarısız oldu');
+      }
     }
   }
 
   /**
-   * Satın alma listener'ını ayarlar (DEMO MODE)
+   * Satın alma listener'ını ayarlar
    */
   static setPurchaseListener() {
-    console.log('🎯 Demo mode: Purchase listener not set');
-    // Demo mode'da listener ayarlamıyoruz
+    if (this.purchaseListener) {
+      this.purchaseListener.remove();
+    }
+
+    this.purchaseListener = InAppPurchases.setPurchaseListener(({ responseCode, results, errorCode }) => {
+      if (__DEV__) {
+        console.log('📱 Purchase listener called:', { responseCode, results, errorCode });
+      }
+
+      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
+        // Başarılı satın almalar
+        results?.forEach(purchase => {
+          if (purchase.acknowledged === false) {
+            this.handleSuccessfulPurchase(purchase);
+          }
+        });
+      } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+        if (__DEV__) {
+          console.log('🚫 User canceled purchase');
+        }
+      } else {
+        console.error('❌ Purchase failed with response code:', responseCode, errorCode);
+      }
+    });
   }
 
   /**
@@ -93,7 +159,9 @@ class IAPService {
    */
   static async handleSuccessfulPurchase(purchase) {
     try {
-      console.log('✅ Processing successful purchase:', purchase);
+      if (__DEV__) {
+        console.log('✅ Processing successful purchase:', purchase);
+      }
       
       const { productId, transactionId, purchaseTime } = purchase;
       
@@ -118,6 +186,9 @@ class IAPService {
         purchaseTime: new Date(purchaseTime).toISOString()
       });
 
+      // Transaction'ı acknowledge et
+      await InAppPurchases.finishTransactionAsync(purchase, true);
+
       // Başarı mesajı göster
       Alert.alert(
         '🎉 Satın Alma Başarılı!',
@@ -125,14 +196,19 @@ class IAPService {
         [{ text: 'Harika!' }]
       );
 
-      // Purchase'ı acknowledge et (Android için gerekli)
-      // Not available in demo mode (InAppPurchases is not imported)
-      // In production, ensure finishTransactionAsync is called.
-
-      console.log('✅ Purchase processed successfully');
+      if (__DEV__) {
+        console.log('✅ Purchase processed and acknowledged successfully');
+      }
       
     } catch (error) {
       console.error('❌ Failed to process purchase:', error);
+      
+      // Hata durumunda da transaction'ı acknowledge et
+      try {
+        await InAppPurchases.finishTransactionAsync(purchase, false);
+      } catch (ackError) {
+        console.error('❌ Failed to acknowledge failed transaction:', ackError);
+      }
       
       Alert.alert(
         'İşlem Hatası',
@@ -158,19 +234,48 @@ class IAPService {
   }
 
   /**
-   * Satın almaları geri yükler (DEMO MODE)
+   * Satın almaları geri yükler
    */
   static async restorePurchases() {
     try {
-      console.log('🎯 Demo mode: Simulating restore purchases...');
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      if (__DEV__) {
+        console.log('🔄 Restoring purchases...');
+      }
       
-      // Demo mode'da gerçek restore yapmıyoruz
-      // Bu fonksiyon asla çağrılmamalı çünkü isAvailable() false döndürüyor
-      throw new Error('Demo mode: Real restore not available');
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      
+      if (results && results.length > 0) {
+        if (__DEV__) {
+          console.log(`🔄 Found ${results.length} previous purchases`);
+        }
+        
+        // Önceki satın almaları işle
+        for (const purchase of results) {
+          if (purchase.acknowledged === false) {
+            await this.handleSuccessfulPurchase(purchase);
+          }
+        }
+        
+        Alert.alert(
+          '✅ Geri Yükleme Başarılı',
+          `${results.length} önceki satın alma geri yüklendi.`,
+          [{ text: 'Tamam' }]
+        );
+      } else {
+        Alert.alert(
+          'ℹ️ Geri Yüklenecek Satın Alma Yok',
+          'Bu hesapta daha önce yapılmış satın alma bulunamadı.',
+          [{ text: 'Tamam' }]
+        );
+      }
       
     } catch (error) {
-      console.error('❌ Demo restore failed:', error);
-      throw error;
+      console.error('❌ Restore failed:', error);
+      throw new Error(error.message || 'Satın almalar geri yüklenemedi');
     }
   }
 
@@ -180,10 +285,12 @@ class IAPService {
   static async isAvailable() {
     try {
       if (!this.isInitialized) {
-        await this.initialize();
+        const initialized = await this.initialize();
+        return initialized;
       }
       return this.isInitialized;
     } catch (error) {
+      console.error('❌ IAP availability check failed:', error);
       return false;
     }
   }
@@ -206,14 +313,29 @@ class IAPService {
   }
 
   /**
-   * Servis bağlantısını kapatır (DEMO MODE)
+   * Servis bağlantısını kapatır
    */
   static async disconnect() {
     try {
-      console.log('🎯 Demo mode: Simulating disconnect...');
+      if (__DEV__) {
+        console.log('🔌 Disconnecting IAP Service...');
+      }
+
+      // Listener'ı kaldır
+      if (this.purchaseListener) {
+        this.purchaseListener.remove();
+        this.purchaseListener = null;
+      }
+
+      // Bağlantıyı kapat
+      await InAppPurchases.disconnectAsync();
+      
       this.isInitialized = false;
       this.products = [];
-      console.log('🔌 Demo IAP Service disconnected');
+      
+      if (__DEV__) {
+        console.log('🔌 IAP Service disconnected');
+      }
     } catch (error) {
       console.error('❌ Failed to disconnect IAP service:', error);
     }
