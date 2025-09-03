@@ -10,6 +10,11 @@ class IAPService {
   static products = [];
   static purchaseListener = null;
 
+  // Receipt validation endpoint
+  static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
+    ? `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/validate-receipt`
+    : null;
+
   // Ürün ID'leri - App Store Connect'te tanımlanmış olanlar
   static PRODUCT_IDS = {
     CREDITS_10: 'com.caridentify.credits10',
@@ -155,7 +160,7 @@ class IAPService {
   }
 
   /**
-   * Başarılı satın almayı işler
+   * Başarılı satın almayı işler - Server-side validation ile
    */
   static async handleSuccessfulPurchase(purchase) {
     try {
@@ -163,47 +168,26 @@ class IAPService {
         console.log('✅ Processing successful purchase:', purchase);
       }
       
-      const { productId, transactionId, purchaseTime } = purchase;
+      const { productId, transactionId, transactionReceipt } = purchase;
       
-      // Kredi paketini bul
-      const packageInfo = this.CREDIT_PACKAGES[productId];
-      if (!packageInfo) {
-        console.error('❌ Unknown product purchased:', productId);
-        return;
-      }
-
-      // Kredileri ekle
-      await CreditService.addCredits(packageInfo.credits, 'in_app_purchase');
-      
-      // Satın almayı logla
-      await CreditService.logPurchase({
-        transactionId,
-        productId,
-        credits: packageInfo.credits,
-        price: this.getProductPrice(productId),
-        currency: 'USD',
-        platform: Platform.OS,
-        purchaseTime: new Date(purchaseTime).toISOString()
-      });
-
-      // Transaction'ı acknowledge et
-      await InAppPurchases.finishTransactionAsync(purchase, true);
-
-      // Başarı mesajı göster
-      Alert.alert(
-        '🎉 Satın Alma Başarılı!',
-        `${packageInfo.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
-        [{ text: 'Harika!' }]
-      );
-
-      if (__DEV__) {
-        console.log('✅ Purchase processed and acknowledged successfully');
+      // Eğer server-side validation varsa kullan
+      if (this.RECEIPT_VALIDATION_URL && transactionReceipt) {
+        if (__DEV__) {
+          console.log('🔍 Using server-side receipt validation');
+        }
+        await this.validatePurchaseWithServer(purchase);
+      } else {
+        // Fallback: Client-side processing
+        if (__DEV__) {
+          console.log('⚠️ No server validation available, using client-side fallback');
+        }
+        await this.processPurchaseClientSide(purchase);
       }
       
     } catch (error) {
       console.error('❌ Failed to process purchase:', error);
       
-      // Hata durumunda da transaction'ı acknowledge et
+      // Hata durumunda transaction'ı false ile acknowledge et
       try {
         await InAppPurchases.finishTransactionAsync(purchase, false);
       } catch (ackError) {
@@ -212,9 +196,120 @@ class IAPService {
       
       Alert.alert(
         'İşlem Hatası',
-        'Satın alma başarılı ancak krediler eklenirken hata oluştu. Lütfen destek ile iletişime geçin.',
+        'Satın alma doğrulanamadı. Lütfen destek ile iletişime geçin.',
         [{ text: 'Tamam' }]
       );
+    }
+  }
+
+  /**
+   * Server-side receipt validation
+   */
+  static async validatePurchaseWithServer(purchase) {
+    const { productId, transactionId, transactionReceipt } = purchase;
+    const CLIENT_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN;
+    
+    if (__DEV__) {
+      console.log('🔍 Validating purchase with server...');
+    }
+    
+    const response = await fetch(this.RECEIPT_VALIDATION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(CLIENT_TOKEN ? { 'x-client-token': CLIENT_TOKEN } : {})
+      },
+      body: JSON.stringify({
+        receiptData: transactionReceipt,
+        productId: productId,
+        transactionId: transactionId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server validation failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.success) {
+      if (__DEV__) {
+        console.log('✅ Server validation successful');
+      }
+      
+      // Server doğruladı - kredileri ekle
+      await CreditService.addCredits(result.credits, 'in_app_purchase');
+      
+      // Purchase log
+      await CreditService.logPurchase({
+        transactionId: result.transactionId,
+        productId: result.productId,
+        credits: result.credits,
+        price: this.getProductPrice(productId),
+        currency: 'USD',
+        platform: Platform.OS,
+        purchaseDate: result.purchaseDate,
+        validated: true
+      });
+
+      // Transaction'ı acknowledge et
+      await InAppPurchases.finishTransactionAsync(purchase, true);
+
+      // Başarı mesajı
+      Alert.alert(
+        '🎉 Satın Alma Başarılı!',
+        `${result.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
+        [{ text: 'Harika!' }]
+      );
+
+      if (__DEV__) {
+        console.log('✅ Purchase validated and processed successfully');
+      }
+    } else {
+      throw new Error(result.error || 'Receipt validation failed');
+    }
+  }
+
+  /**
+   * Client-side fallback processing (eski sistem)
+   */
+  static async processPurchaseClientSide(purchase) {
+    const { productId, transactionId, purchaseTime } = purchase;
+    
+    // Kredi paketini bul
+    const packageInfo = this.CREDIT_PACKAGES[productId];
+    if (!packageInfo) {
+      console.error('❌ Unknown product purchased:', productId);
+      return;
+    }
+
+    // Kredileri ekle
+    await CreditService.addCredits(packageInfo.credits, 'in_app_purchase');
+    
+    // Satın almayı logla
+    await CreditService.logPurchase({
+      transactionId,
+      productId,
+      credits: packageInfo.credits,
+      price: this.getProductPrice(productId),
+      currency: 'USD',
+      platform: Platform.OS,
+      purchaseTime: new Date(purchaseTime).toISOString(),
+      validated: false // Client-side validation
+    });
+
+    // Transaction'ı acknowledge et
+    await InAppPurchases.finishTransactionAsync(purchase, true);
+
+    // Başarı mesajı göster
+    Alert.alert(
+      '🎉 Satın Alma Başarılı!',
+      `${packageInfo.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
+      [{ text: 'Harika!' }]
+    );
+
+    if (__DEV__) {
+      console.log('✅ Purchase processed with client-side fallback');
     }
   }
 
