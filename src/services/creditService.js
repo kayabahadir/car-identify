@@ -86,23 +86,31 @@ class CreditService {
       if (canUse.type === 'developer') {
         // Geliştirici modunda kredi kullanılmaz
         await this.logCreditHistory('developer_analysis_used', 0, 'Geliştirici modunda analiz kullanıldı');
-        console.log('✅ Developer mode analysis used');
+        if (__DEV__) {
+          console.log('✅ Developer mode analysis used');
+        }
         return true;
       } else if (canUse.type === 'free') {
         await FirstTimeService.markFreeAnalysisUsed();
         await this.logCreditHistory('free_analysis_used', 0, 'Ücretsiz analiz kullanıldı');
-        console.log('✅ Free analysis used');
+        if (__DEV__) {
+          console.log('✅ Free analysis used');
+        }
         return true;
       } else if (canUse.type === 'credit') {
         const success = await this.useCredit();
         if (success) {
           await this.logCreditHistory('credit_used', -1, 'Analiz için kredi kullanıldı');
-          console.log('✅ Credit used for analysis');
+          if (__DEV__) {
+            console.log('✅ Credit used for analysis');
+          }
         }
         return success;
       }
 
-      console.log('❌ Cannot use analysis - no credits or free analysis available');
+      if (__DEV__) {
+        console.log('❌ Cannot use analysis - no credits or free analysis available');
+      }
       return false;
     } catch (error) {
       console.error('Error using analysis:', error);
@@ -120,10 +128,14 @@ class CreditService {
       if (credits > 0) {
         const newCredits = credits - 1;
         await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
-        console.log(`✅ Credit used. Remaining: ${newCredits}`);
+        if (__DEV__) {
+          console.log(`✅ Credit used. Remaining: ${newCredits}`);
+        }
         return true;
       }
-      console.log('❌ No credits available');
+      if (__DEV__) {
+        console.log('❌ No credits available');
+      }
       return false;
     } catch (error) {
       console.error('Error using credit:', error);
@@ -144,7 +156,9 @@ class CreditService {
       await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
       await this.logCreditHistory('credits_added', amount, `${source} ile ${amount} kredi eklendi`);
       
-      console.log(`✅ ${amount} credits added. Total: ${newCredits}`);
+      if (__DEV__) {
+        console.log(`✅ ${amount} credits added. Total: ${newCredits}`);
+      }
       return newCredits;
     } catch (error) {
       console.error('Error adding credits:', error);
@@ -298,7 +312,9 @@ class CreditService {
       // FirstTimeService'i de sıfırla
       await FirstTimeService.resetForTesting();
       
-      console.log('🔄 Credit service reset for testing');
+      if (__DEV__) {
+        console.log('🔄 Credit service reset for testing');
+      }
     } catch (error) {
       console.error('Error resetting credit service:', error);
     }
@@ -347,7 +363,9 @@ class CreditService {
       await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
       await this.logCreditHistory('developer_credits_added', amount, `Geliştirici test kredileri: ${amount} kredi`);
       
-      console.log(`✅ Developer credits added: ${amount}. Total: ${newCredits}`);
+      if (__DEV__) {
+        console.log(`✅ Developer credits added: ${amount}. Total: ${newCredits}`);
+      }
       return newCredits;
     } catch (error) {
       console.error('Error adding developer credits:', error);
@@ -370,7 +388,9 @@ class CreditService {
       await AsyncStorage.setItem('developerMode', 'true');
       await AsyncStorage.setItem('developerModeEnabledAt', new Date().toISOString());
       
-      console.log('✅ Developer mode enabled');
+      if (__DEV__) {
+        console.log('✅ Developer mode enabled');
+      }
       return true;
     } catch (error) {
       console.error('Error enabling developer mode:', error);
@@ -406,7 +426,9 @@ class CreditService {
       await AsyncStorage.removeItem('developerMode');
       await AsyncStorage.removeItem('developerModeEnabledAt');
       
-      console.log('✅ Developer mode disabled');
+      if (__DEV__) {
+        console.log('✅ Developer mode disabled');
+      }
       return true;
     } catch (error) {
       console.error('Error disabling developer mode:', error);

@@ -1,6 +1,18 @@
-import * as InAppPurchases from 'expo-in-app-purchases';
 import { Alert, Platform } from 'react-native';
 import CreditService from './creditService';
+
+// IAP modülünü conditionally import et
+let InAppPurchases = null;
+try {
+  InAppPurchases = require('expo-in-app-purchases');
+} catch (error) {
+  // Production'da IAP eksikliği kritik hata olmalı
+  if (!__DEV__) {
+    console.error('❌ CRITICAL: InAppPurchases module not available in production');
+    throw new Error('IAP module required for production builds');
+  }
+  console.warn('⚠️ InAppPurchases module not available in development environment');
+}
 
 /**
  * In-App Purchase Service - Expo IAP ile entegrasyon
@@ -38,6 +50,17 @@ class IAPService {
         return true;
       }
 
+      // Expo Go'da IAP mevcut değilse mock mode'a geç
+      if (!InAppPurchases) {
+        if (__DEV__) {
+          console.log('🔧 IAP not available - using mock mode');
+          console.log('⚠️  WARNING: This is MOCK MODE - not suitable for production!');
+          console.log('✅ Mock IAP Service initialized successfully');
+        }
+        this.isInitialized = true;
+        return true;
+      }
+
       if (__DEV__) {
         console.log('🔧 Initializing In-App Purchases...');
       }
@@ -70,6 +93,12 @@ class IAPService {
    */
   static async loadProducts() {
     try {
+      // Mock mode'da products yüklemeyeceğiz
+      if (!InAppPurchases) {
+        this.products = [];
+        return [];
+      }
+
       if (__DEV__) {
         console.log('📦 Loading IAP products...');
       }
@@ -102,6 +131,11 @@ class IAPService {
         await this.initialize();
       }
 
+      // Mock mode'da simulated purchase
+      if (!InAppPurchases) {
+        return await this.mockPurchase(productId);
+      }
+
       if (__DEV__) {
         console.log('💳 Initiating purchase for:', productId);
       }
@@ -118,14 +152,43 @@ class IAPService {
     } catch (error) {
       console.error('❌ Purchase failed:', error);
       
-      // Kullanıcı iptali vs. için özel mesajlar
-      if (error.code === InAppPurchases.IAPErrorCode.PAYMENT_CANCELLED) {
-        throw new Error('Satın alma iptal edildi');
-      } else if (error.code === InAppPurchases.IAPErrorCode.PAYMENT_NOT_ALLOWED) {
-        throw new Error('Satın alma işlemi bu cihazda izin verilmiyor');
-      } else {
-        throw new Error(error.message || 'Satın alma işlemi başarısız oldu');
-      }
+        // Kullanıcı iptali vs. için özel mesajlar
+        if (InAppPurchases && error.code === InAppPurchases.IAPErrorCode.PAYMENT_CANCELLED) {
+          throw new Error('Satın alma iptal edildi');
+        } else if (InAppPurchases && error.code === InAppPurchases.IAPErrorCode.PAYMENT_NOT_ALLOWED) {
+          throw new Error('Satın alma işlemi bu cihazda izin verilmiyor');
+        } else {
+          throw new Error(error.message || 'Satın alma işlemi başarısız oldu');
+        }
+    }
+  }
+
+  /**
+   * Mock purchase for development/testing
+   */
+  static async mockPurchase(productId) {
+    if (__DEV__) {
+      console.log('🧪 Mock purchase started for:', productId);
+      console.log('⚠️  WARNING: This is a simulated purchase - no real money charged!');
+    }
+    
+    // Simulated delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Mock purchase object
+    const mockPurchase = {
+      productId,
+      transactionId: `mock_${Date.now()}`,
+      purchaseTime: Date.now(),
+      acknowledged: false
+    };
+    
+    // Process the mock purchase using client-side fallback
+    await this.processPurchaseClientSide(mockPurchase);
+    
+    if (__DEV__) {
+      console.log('🧪 Mock purchase completed successfully');
+      console.log('⚠️  Remember: This was a MOCK purchase for testing only!');
     }
   }
 
@@ -133,6 +196,13 @@ class IAPService {
    * Satın alma listener'ını ayarlar
    */
   static setPurchaseListener() {
+    if (!InAppPurchases) {
+      if (__DEV__) {
+        console.log('🔧 Purchase listener not available in mock mode');
+      }
+      return;
+    }
+
     if (this.purchaseListener) {
       this.purchaseListener.remove();
     }
@@ -142,14 +212,14 @@ class IAPService {
         console.log('📱 Purchase listener called:', { responseCode, results, errorCode });
       }
 
-      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
-        // Başarılı satın almalar
-        results?.forEach(purchase => {
-          if (purchase.acknowledged === false) {
-            this.handleSuccessfulPurchase(purchase);
-          }
-        });
-      } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+        if (InAppPurchases && responseCode === InAppPurchases.IAPResponseCode.OK) {
+          // Başarılı satın almalar
+          results?.forEach(purchase => {
+            if (purchase.acknowledged === false) {
+              this.handleSuccessfulPurchase(purchase);
+            }
+          });
+        } else if (InAppPurchases && responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
         if (__DEV__) {
           console.log('🚫 User canceled purchase');
         }
@@ -187,11 +257,13 @@ class IAPService {
     } catch (error) {
       console.error('❌ Failed to process purchase:', error);
       
-      // Hata durumunda transaction'ı false ile acknowledge et
-      try {
-        await InAppPurchases.finishTransactionAsync(purchase, false);
-      } catch (ackError) {
-        console.error('❌ Failed to acknowledge failed transaction:', ackError);
+      // Hata durumunda transaction'ı false ile acknowledge et (sadece gerçek IAP'da)
+      if (InAppPurchases) {
+        try {
+          await InAppPurchases.finishTransactionAsync(purchase, false);
+        } catch (ackError) {
+          console.error('❌ Failed to acknowledge failed transaction:', ackError);
+        }
       }
       
       Alert.alert(
@@ -252,8 +324,10 @@ class IAPService {
         validated: true
       });
 
-      // Transaction'ı acknowledge et
-      await InAppPurchases.finishTransactionAsync(purchase, true);
+      // Transaction'ı acknowledge et (sadece gerçek IAP'da)
+      if (InAppPurchases) {
+        await InAppPurchases.finishTransactionAsync(purchase, true);
+      }
 
       // Başarı mesajı
       Alert.alert(
@@ -298,8 +372,10 @@ class IAPService {
       validated: false // Client-side validation
     });
 
-    // Transaction'ı acknowledge et
-    await InAppPurchases.finishTransactionAsync(purchase, true);
+    // Transaction'ı acknowledge et (sadece gerçek IAP'da)
+    if (InAppPurchases) {
+      await InAppPurchases.finishTransactionAsync(purchase, true);
+    }
 
     // Başarı mesajı göster
     Alert.alert(
@@ -335,6 +411,16 @@ class IAPService {
     try {
       if (!this.isInitialized) {
         await this.initialize();
+      }
+
+      // Mock mode'da restore yapmayacağız
+      if (!InAppPurchases) {
+        Alert.alert(
+          'Mock Mode',
+          'Bu mock modudur. Gerçek satın alma geri yüklemesi development build gerektirir.',
+          [{ text: 'Tamam' }]
+        );
+        return;
       }
 
       if (__DEV__) {
@@ -379,6 +465,11 @@ class IAPService {
    */
   static async isAvailable() {
     try {
+      // Mock mode'da da available dön (test için)
+      if (!InAppPurchases) {
+        return true;
+      }
+
       if (!this.isInitialized) {
         const initialized = await this.initialize();
         return initialized;
@@ -395,6 +486,7 @@ class IAPService {
    */
   static async getDebugInfo() {
     return {
+      mockMode: !InAppPurchases,
       isInitialized: this.isInitialized,
       productCount: this.products.length,
       products: this.products.map(p => ({
@@ -420,6 +512,13 @@ class IAPService {
       if (this.purchaseListener) {
         this.purchaseListener.remove();
         this.purchaseListener = null;
+      }
+
+      // Mock mode'da disconnect yapmayacağız
+      if (!InAppPurchases) {
+        this.isInitialized = false;
+        this.products = [];
+        return;
       }
 
       // Bağlantıyı kapat
