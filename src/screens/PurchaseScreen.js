@@ -268,6 +268,7 @@ const PurchaseScreen = ({ navigation }) => {
 
       <ScrollView 
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Info Section */}
@@ -366,6 +367,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40, // ScrollView için ekstra bottom padding
   },
   infoSection: {
     margin: 20,

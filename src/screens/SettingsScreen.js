@@ -301,7 +301,11 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Current Credits Section */}
         <View style={styles.section}>
           <View style={styles.creditsSummary}>
@@ -429,6 +433,13 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: getPadding(40, 60, 80), // ScrollView için ekstra bottom padding
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingBottom: getPadding(30, 40, 60)
+    }),
   },
   loadingContainer: {
     flex: 1,

@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -20,6 +21,8 @@ import IAPService from '../services/iapService';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isTablet = screenWidth >= 768; // iPad threshold
 const isLargeTablet = screenWidth >= 1024; // Large iPad threshold
+const isSmallScreen = screenHeight < 700; // iPhone SE, Mini gibi küçük ekranlar
+const isTallScreen = screenHeight > 850; // iPhone 15 Pro, 14 Pro Max gibi uzun ekranlar
 
 // Responsive dimensions
 const getResponsiveValue = (phoneValue, tabletValue, largeTabletValue = tabletValue) => {
@@ -283,6 +286,13 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
       </View>
 
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+
       {/* Kredi Durumu */}
       <View style={styles.creditContainer}>
         <View style={[styles.creditBox, creditInfo.type === 'free' && styles.creditBoxFree]}>
@@ -442,36 +452,63 @@ const HomeScreen = ({ navigation, route }) => {
           </View>
         </View>
       )}
+      </ScrollView>
      </View>
    );
 };
 
 const styles = StyleSheet.create({
   container: {
-    // Web'de scroll için flex: 1 kaldırıldı
+    flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: getPadding(24, 40, 60),
-    paddingTop: getPadding(50, 60, 80),
-    paddingBottom: getPadding(50, 60, 80), // Alt padding eklendi
-    minHeight: '100vh', // Web'de tam yükseklik
+    paddingTop: getPadding(20, 30, 40),
+    paddingBottom: getPadding(100, 120, 150), // Ekstra bottom padding ScrollView için
     // iPad Mini için ek optimizasyon
-    overflow: 'auto', // Web'de scroll için
-    // iPad Mini için daha kompakt
     ...(isTablet && !isLargeTablet && { 
-      paddingTop: getPadding(20, 30, 40),
-      paddingBottom: getPadding(20, 30, 40)
+      paddingTop: getPadding(15, 25, 35),
+      paddingBottom: getPadding(80, 100, 120)
+    }),
+    // Küçük ekranlar için daha az padding
+    ...(isSmallScreen && {
+      paddingTop: getPadding(10, 15, 25),
+      paddingBottom: getPadding(60, 80, 100),
+      paddingHorizontal: getPadding(16, 24, 40)
+    }),
+    // Uzun ekranlar için daha fazla spacing
+    ...(isTallScreen && !isTablet && {
+      paddingTop: getPadding(30, 40, 50),
+      paddingBottom: getPadding(120, 140, 160)
     }),
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: getMargin(40, 50, 60),
-    marginBottom: getMargin(30, 40, 50),
+    paddingHorizontal: getPadding(24, 40, 60),
+    paddingTop: getPadding(50, 60, 80),
+    paddingBottom: getPadding(20, 25, 30),
+    backgroundColor: '#f8f9fa',
     // iPad Mini için daha kompakt
     ...(isTablet && !isLargeTablet && { 
-      marginTop: getMargin(20, 30, 40),
-      marginBottom: getMargin(20, 30, 40)
+      paddingTop: getPadding(30, 40, 50),
+      paddingBottom: getPadding(15, 20, 25)
+    }),
+    // Küçük ekranlar için daha az padding
+    ...(isSmallScreen && {
+      paddingTop: getPadding(40, 50, 60),
+      paddingBottom: getPadding(15, 20, 25),
+      paddingHorizontal: getPadding(16, 24, 40)
+    }),
+    // Uzun ekranlar için daha fazla top padding
+    ...(isTallScreen && !isTablet && {
+      paddingTop: getPadding(60, 70, 90),
+      paddingBottom: getPadding(25, 30, 35)
     }),
   },
   titleContainer: {
