@@ -22,6 +22,7 @@ class IAPService {
   static products = [];
   static purchaseListener = null;
   static purchasePromiseResolvers = new Map(); // Purchase promise tracking
+  static activePurchaseMonitors = new Map(); // Active purchase monitoring
 
   // Receipt validation endpoint
   static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
@@ -149,11 +150,12 @@ class IAPService {
         // Promise resolver'ı sakla
         this.purchasePromiseResolvers.set(productId, { resolve, reject });
         
-        // Timeout ekle (60 saniye)
+        // Timeout ekle (90 saniye - agresif monitoring için daha uzun)
         const timeout = setTimeout(() => {
+          this.stopPurchaseMonitoring(productId);
           this.purchasePromiseResolvers.delete(productId);
-          reject(new Error('Satın alma işlemi zaman aşımına uğradı'));
-        }, 60000);
+          reject(new Error('Satın alma işlemi zaman aşımına uğradı. Apple sunucularında gecikme olabilir.'));
+        }, 90000);
         
         // Promise resolver'a timeout'u da ekle
         this.purchasePromiseResolvers.get(productId).timeout = timeout;
@@ -162,8 +164,8 @@ class IAPService {
           // Gerçek satın alma işlemini başlat
           await InAppPurchases.purchaseItemAsync(productId);
           
-          // Fallback: Purchase history polling başlat
-          this.startPurchasePolling(productId, resolve, reject, timeout);
+          // Agresif monitoring başlat
+          this.startAggressivePurchaseMonitoring(productId, resolve, reject, timeout);
           
         } catch (error) {
           // purchaseItemAsync hata verirse
@@ -265,6 +267,9 @@ class IAPService {
       if (resolver.pollInterval) {
         clearInterval(resolver.pollInterval);
       }
+      if (resolver.monitor) {
+        this.stopPurchaseMonitoring(productId);
+      }
       this.purchasePromiseResolvers.delete(productId);
       resolver.resolve(purchase);
     }
@@ -280,6 +285,9 @@ class IAPService {
       if (resolver.pollInterval) {
         clearInterval(resolver.pollInterval);
       }
+      if (resolver.monitor) {
+        this.stopPurchaseMonitoring(productId);
+      }
       this.purchasePromiseResolvers.delete(productId);
       resolver.reject(error);
     }
@@ -294,9 +302,13 @@ class IAPService {
       if (resolver.pollInterval) {
         clearInterval(resolver.pollInterval);
       }
+      if (resolver.monitor) {
+        this.stopPurchaseMonitoring(productId);
+      }
       resolver.reject(error);
     }
     this.purchasePromiseResolvers.clear();
+    this.activePurchaseMonitors.clear();
   }
 
   /**
@@ -336,64 +348,123 @@ class IAPService {
   }
 
   /**
-   * Purchase history polling - Fallback strategy
+   * Agresif purchase monitoring - Çoklu strateji
    */
-  static startPurchasePolling(productId, resolve, reject, mainTimeout) {
-    let pollCount = 0;
-    const maxPolls = 24; // 24 polls x 2.5s = 60s
+  static startAggressivePurchaseMonitoring(productId, resolve, reject, mainTimeout) {
+    const startTime = Date.now();
     
-    const pollInterval = setInterval(async () => {
-      try {
-        pollCount++;
+    if (__DEV__) {
+      console.log('🔍 Starting aggressive purchase monitoring for:', productId);
+    }
+    
+    // Monitor objesini oluştur
+    const monitor = {
+      productId,
+      startTime,
+      pollCount: 0,
+      fastPollInterval: null,
+      slowPollInterval: null,
+      resolve,
+      reject,
+      mainTimeout
+    };
+    
+    this.activePurchaseMonitors.set(productId, monitor);
+    
+    // 1. Hızlı polling (ilk 30 saniye, her 1 saniye)
+    monitor.fastPollInterval = setInterval(async () => {
+      await this.checkPurchaseStatus(monitor, 'fast');
+    }, 1000);
+    
+    // 2. Yavaş polling (30-60 saniye, her 3 saniye)
+    setTimeout(() => {
+      if (this.activePurchaseMonitors.has(productId)) {
+        clearInterval(monitor.fastPollInterval);
         
-        if (pollCount >= maxPolls) {
-          clearInterval(pollInterval);
-          return; // Ana timeout zaten reject edecek
-        }
+        monitor.slowPollInterval = setInterval(async () => {
+          await this.checkPurchaseStatus(monitor, 'slow');
+        }, 3000);
+      }
+    }, 30000);
+    
+    // Promise resolver'a monitor'u ekle
+    if (this.purchasePromiseResolvers.has(productId)) {
+      this.purchasePromiseResolvers.get(productId).monitor = monitor;
+    }
+  }
+  
+  /**
+   * Purchase status kontrolü
+   */
+  static async checkPurchaseStatus(monitor, type) {
+    try {
+      monitor.pollCount++;
+      const elapsed = Date.now() - monitor.startTime;
+      
+      if (__DEV__) {
+        console.log(`🔍 ${type} poll #${monitor.pollCount} for ${monitor.productId} (${Math.round(elapsed/1000)}s)`);
+      }
+      
+      // Purchase history kontrol et
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      
+      if (results && results.length > 0) {
+        // Monitor başlangıcından sonraki transaction'ları ara
+        const recentPurchases = results
+          .filter(p => 
+            p.productId === monitor.productId && 
+            p.purchaseTime >= (monitor.startTime - 10000) && // 10s öncesinden başla
+            !p.acknowledged
+          )
+          .sort((a, b) => b.purchaseTime - a.purchaseTime);
         
-        // Purchase history'yi kontrol et
-        const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-        
-        if (results && results.length > 0) {
-          // Son 5 dakikalık transaction'ları kontrol et
-          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        if (recentPurchases.length > 0) {
+          const latestPurchase = recentPurchases[0];
           
-          const recentPurchases = results
-            .filter(p => 
-              p.productId === productId && 
-              p.purchaseTime >= fiveMinutesAgo &&
-              !p.acknowledged
-            )
-            .sort((a, b) => b.purchaseTime - a.purchaseTime);
-          
-          if (recentPurchases.length > 0) {
-            const latestPurchase = recentPurchases[0];
-            
-            if (__DEV__) {
-              console.log('🔍 Polling found recent purchase:', latestPurchase);
-            }
-            
-            // Yeni satın alma bulundu!
-            clearInterval(pollInterval);
-            clearTimeout(mainTimeout);
-            this.purchasePromiseResolvers.delete(productId);
-            
-            // Purchase'ı işle
-            await this.handleSuccessfulPurchase(latestPurchase);
-            resolve(latestPurchase);
+          if (__DEV__) {
+            console.log('✅ Purchase found by monitoring:', {
+              productId: latestPurchase.productId,
+              transactionId: latestPurchase.transactionId,
+              purchaseTime: new Date(latestPurchase.purchaseTime).toISOString(),
+              pollType: type,
+              elapsed: `${Math.round(elapsed/1000)}s`
+            });
           }
-        }
-        
-      } catch (error) {
-        if (__DEV__) {
-          console.log('🔍 Purchase polling error:', error);
+          
+          // Monitoring'i durdur
+          this.stopPurchaseMonitoring(monitor.productId);
+          
+          // Purchase'ı işle
+          await this.handleSuccessfulPurchase(latestPurchase);
+          monitor.resolve(latestPurchase);
+          return;
         }
       }
-    }, 2500); // Her 2.5 saniyede bir kontrol et
-    
-    // Polling interval'ı promise resolver'a ekle
-    if (this.purchasePromiseResolvers.has(productId)) {
-      this.purchasePromiseResolvers.get(productId).pollInterval = pollInterval;
+      
+    } catch (error) {
+      if (__DEV__) {
+        console.log(`⚠️ ${type} poll error:`, error.message);
+      }
+    }
+  }
+  
+  /**
+   * Purchase monitoring'i durdur
+   */
+  static stopPurchaseMonitoring(productId) {
+    const monitor = this.activePurchaseMonitors.get(productId);
+    if (monitor) {
+      if (monitor.fastPollInterval) {
+        clearInterval(monitor.fastPollInterval);
+      }
+      if (monitor.slowPollInterval) {
+        clearInterval(monitor.slowPollInterval);
+      }
+      this.activePurchaseMonitors.delete(productId);
+      
+      if (__DEV__) {
+        console.log('🚫 Stopped monitoring for:', productId);
+      }
     }
   }
 
