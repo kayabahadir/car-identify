@@ -75,6 +75,9 @@ class IAPService {
       // Ürünleri yükle
       await this.loadProducts();
       
+      // Pending transaction'ları kontrol et ve işle
+      await this.processPendingTransactions();
+      
       this.isInitialized = true;
       
       if (__DEV__) {
@@ -297,6 +300,42 @@ class IAPService {
   }
 
   /**
+   * Uygulama başlatıldığında pending transaction'ları işler
+   */
+  static async processPendingTransactions() {
+    if (!InAppPurchases) {
+      return; // Mock mode'da skip
+    }
+
+    try {
+      if (__DEV__) {
+        console.log('🔍 Checking for pending transactions...');
+      }
+
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      
+      if (results && results.length > 0) {
+        const pendingPurchases = results.filter(p => !p.acknowledged);
+        
+        if (pendingPurchases.length > 0) {
+          if (__DEV__) {
+            console.log(`🔍 Found ${pendingPurchases.length} pending transactions`);
+          }
+          
+          // Pending transaction'ları işle
+          for (const purchase of pendingPurchases) {
+            await this.handleSuccessfulPurchase(purchase);
+          }
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.log('⚠️ Error processing pending transactions:', error);
+      }
+    }
+  }
+
+  /**
    * Purchase history polling - Fallback strategy
    */
   static startPurchasePolling(productId, resolve, reject, mainTimeout) {
@@ -316,20 +355,32 @@ class IAPService {
         const { results } = await InAppPurchases.getPurchaseHistoryAsync();
         
         if (results && results.length > 0) {
-          // Son transaction'ı bul
-          const recentPurchase = results
-            .filter(p => p.productId === productId)
-            .sort((a, b) => b.purchaseTime - a.purchaseTime)[0];
+          // Son 5 dakikalık transaction'ları kontrol et
+          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
           
-          if (recentPurchase && !recentPurchase.acknowledged) {
+          const recentPurchases = results
+            .filter(p => 
+              p.productId === productId && 
+              p.purchaseTime >= fiveMinutesAgo &&
+              !p.acknowledged
+            )
+            .sort((a, b) => b.purchaseTime - a.purchaseTime);
+          
+          if (recentPurchases.length > 0) {
+            const latestPurchase = recentPurchases[0];
+            
+            if (__DEV__) {
+              console.log('🔍 Polling found recent purchase:', latestPurchase);
+            }
+            
             // Yeni satın alma bulundu!
             clearInterval(pollInterval);
             clearTimeout(mainTimeout);
             this.purchasePromiseResolvers.delete(productId);
             
             // Purchase'ı işle
-            await this.handleSuccessfulPurchase(recentPurchase);
-            resolve(recentPurchase);
+            await this.handleSuccessfulPurchase(latestPurchase);
+            resolve(latestPurchase);
           }
         }
         
@@ -590,6 +641,42 @@ class IAPService {
   }
 
   /**
+   * TestFlight debug için - Tüm transaction'ları göster
+   */
+  static async debugPurchaseHistory() {
+    if (!InAppPurchases || !this.isInitialized) {
+      console.log('⚠️ IAP not available for debug');
+      return;
+    }
+
+    try {
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      
+      console.log('🔍=== PURCHASE HISTORY DEBUG ===');
+      console.log(`Total transactions: ${results?.length || 0}`);
+      
+      if (results && results.length > 0) {
+        results.forEach((purchase, index) => {
+          console.log(`🔍 Transaction ${index + 1}:`, {
+            productId: purchase.productId,
+            transactionId: purchase.transactionId,
+            purchaseTime: new Date(purchase.purchaseTime).toISOString(),
+            acknowledged: purchase.acknowledged
+          });
+        });
+        
+        const pending = results.filter(p => !p.acknowledged);
+        console.log(`🔍 Pending transactions: ${pending.length}`);
+      }
+      
+      console.log('🔍=== END DEBUG ===');
+      
+    } catch (error) {
+      console.error('❌ Debug failed:', error);
+    }
+  }
+
+  /**
    * IAP'ın kullanılabilir olup olmadığını kontrol eder
    */
   static async isAvailable() {
@@ -614,6 +701,19 @@ class IAPService {
    * Servis durumu hakkında debug bilgisi
    */
   static async getDebugInfo() {
+    let purchaseHistory = [];
+    
+    if (InAppPurchases && this.isInitialized) {
+      try {
+        const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+        purchaseHistory = results || [];
+      } catch (error) {
+        if (__DEV__) {
+          console.log('Debug: Could not fetch purchase history');
+        }
+      }
+    }
+    
     return {
       mockMode: !InAppPurchases,
       isInitialized: this.isInitialized,
@@ -624,7 +724,14 @@ class IAPService {
         title: p.title
       })),
       platform: Platform.OS,
-      productIds: this.PRODUCT_IDS
+      productIds: this.PRODUCT_IDS,
+      purchaseHistory: purchaseHistory.map(p => ({
+        productId: p.productId,
+        purchaseTime: new Date(p.purchaseTime).toISOString(),
+        acknowledged: p.acknowledged,
+        transactionId: p.transactionId
+      })),
+      pendingTransactions: purchaseHistory.filter(p => !p.acknowledged).length
     };
   }
 
