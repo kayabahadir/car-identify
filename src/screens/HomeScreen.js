@@ -136,17 +136,29 @@ const HomeScreen = ({ navigation, route }) => {
                 const iapAvailable = await IAPService.isAvailable();
                 
                 if (iapAvailable) {
-                  // Gerçek IAP satın alma
-                  await IAPService.purchaseProduct(packageInfo.id);
-                  
-                  // Ücretsiz analiz hakkını kullanılmış olarak işaretle (satın alma yaptığı için)
-                  await FirstTimeService.markFreeAnalysisUsed();
-                  
-                  Alert.alert(
-                    `🎉 ${t('purchaseSuccess')}`,
-                    `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-                    [{ text: t('great'), onPress: () => checkCreditStatus() }]
-                  );
+                  try {
+                    // Gerçek IAP satın alma - artık promise dönüyor
+                    const purchase = await IAPService.purchaseProduct(packageInfo.id);
+                    
+                    // Başarılı olduğunda ücretsiz analiz hakkını kullanılmış olarak işaretle
+                    await FirstTimeService.markFreeAnalysisUsed();
+                    
+                    // Kredi durumunu güncelle
+                    await checkCreditStatus();
+                    
+                    Alert.alert(
+                      `🎉 ${t('purchaseSuccess')}`,
+                      `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+                      [{ text: t('great') }]
+                    );
+                  } catch (purchaseError) {
+                    // Satın alma hatası (user cancel, payment fail vs.)
+                    if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {
+                      // User cancel - sessizce geç
+                      return;
+                    }
+                    throw purchaseError; // Diğer hatalar için dışarıya fırlat
+                  }
                 } else {
                   Alert.alert(
                     t('unavailable') || 'Kullanılamıyor',

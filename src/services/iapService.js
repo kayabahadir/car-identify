@@ -21,6 +21,7 @@ class IAPService {
   static isInitialized = false;
   static products = [];
   static purchaseListener = null;
+  static purchasePromiseResolvers = new Map(); // Purchase promise tracking
 
   // Receipt validation endpoint
   static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
@@ -140,14 +141,28 @@ class IAPService {
         console.log('💳 Initiating purchase for:', productId);
       }
       
-      // Gerçek satın alma işlemi
-      await InAppPurchases.purchaseItemAsync(productId);
-      
-      if (__DEV__) {
-        console.log('💳 Purchase request sent for:', productId);
-      }
-      
-      // Purchase listener otomatik olarak sonucu işleyecek
+      // Promise oluştur ve bekle
+      return new Promise((resolve, reject) => {
+        // Promise resolver'ı sakla
+        this.purchasePromiseResolvers.set(productId, { resolve, reject });
+        
+        // Timeout ekle (60 saniye)
+        const timeout = setTimeout(() => {
+          this.purchasePromiseResolvers.delete(productId);
+          reject(new Error('Satın alma işlemi zaman aşımına uğradı'));
+        }, 60000);
+        
+        // Promise resolver'a timeout'u da ekle
+        this.purchasePromiseResolvers.get(productId).timeout = timeout;
+        
+        // Gerçek satın alma işlemini başlat
+        InAppPurchases.purchaseItemAsync(productId).catch((error) => {
+          // purchaseItemAsync hata verirse
+          clearTimeout(timeout);
+          this.purchasePromiseResolvers.delete(productId);
+          reject(error);
+        });
+      });
       
     } catch (error) {
       console.error('❌ Purchase failed:', error);
@@ -225,8 +240,45 @@ class IAPService {
         }
       } else {
         console.error('❌ Purchase failed with response code:', responseCode, errorCode);
+        // Tüm bekleyen promise'ları reject et
+        this.rejectAllPurchasePromises(new Error(`Purchase failed with code: ${responseCode}`));
       }
     });
+  }
+
+  /**
+   * Purchase promise'ı resolve eder
+   */
+  static resolvePurchasePromise(productId, purchase) {
+    const resolver = this.purchasePromiseResolvers.get(productId);
+    if (resolver) {
+      clearTimeout(resolver.timeout);
+      this.purchasePromiseResolvers.delete(productId);
+      resolver.resolve(purchase);
+    }
+  }
+
+  /**
+   * Purchase promise'ı reject eder
+   */
+  static rejectPurchasePromise(productId, error) {
+    const resolver = this.purchasePromiseResolvers.get(productId);
+    if (resolver) {
+      clearTimeout(resolver.timeout);
+      this.purchasePromiseResolvers.delete(productId);
+      resolver.reject(error);
+    }
+  }
+
+  /**
+   * Tüm bekleyen purchase promise'larını reject eder
+   */
+  static rejectAllPurchasePromises(error) {
+    for (const [productId, resolver] of this.purchasePromiseResolvers.entries()) {
+      clearTimeout(resolver.timeout);
+      resolver.reject(error);
+    }
+    this.purchasePromiseResolvers.clear();
   }
 
   /**
@@ -254,8 +306,14 @@ class IAPService {
         await this.processPurchaseClientSide(purchase);
       }
       
+      // Promise resolve et
+      this.resolvePurchasePromise(productId, purchase);
+      
     } catch (error) {
       console.error('❌ Failed to process purchase:', error);
+      
+      // Promise reject et
+      this.rejectPurchasePromise(productId, error);
       
       // Hata durumunda transaction'ı false ile acknowledge et (sadece gerçek IAP'da)
       if (InAppPurchases) {
@@ -329,12 +387,15 @@ class IAPService {
         await InAppPurchases.finishTransactionAsync(purchase, true);
       }
 
-      // Başarı mesajı
-      Alert.alert(
-        '🎉 Satın Alma Başarılı!',
-        `${result.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
-        [{ text: 'Harika!' }]
-      );
+      // Başarı mesajı - sadece development'ta göster
+      // Production'da UI tarafında gösterilecek
+      if (__DEV__) {
+        Alert.alert(
+          '🎉 Satın Alma Başarılı!',
+          `${result.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
+          [{ text: 'Harika!' }]
+        );
+      }
 
       if (__DEV__) {
         console.log('✅ Purchase validated and processed successfully');
@@ -377,12 +438,15 @@ class IAPService {
       await InAppPurchases.finishTransactionAsync(purchase, true);
     }
 
-    // Başarı mesajı göster
-    Alert.alert(
-      '🎉 Satın Alma Başarılı!',
-      `${packageInfo.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
-      [{ text: 'Harika!' }]
-    );
+    // Başarı mesajı göster - sadece development'ta
+    // Production'da UI tarafında gösterilecek
+    if (__DEV__) {
+      Alert.alert(
+        '🎉 Satın Alma Başarılı!',
+        `${packageInfo.credits} kredi hesabınıza eklendi!\n\nArtık ${await CreditService.getCredits()} krediniz var.`,
+        [{ text: 'Harika!' }]
+      );
+    }
 
     if (__DEV__) {
       console.log('✅ Purchase processed with client-side fallback');

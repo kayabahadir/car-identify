@@ -96,23 +96,32 @@ const PurchaseScreen = ({ navigation }) => {
       const iapAvailable = await IAPService.isAvailable();
       
       if (iapAvailable) {
-        // Gerçek IAP satın alma
-        await IAPService.purchaseProduct(packageInfo.id);
-        // IAPService otomatik olarak kredileri ekleyecek
-        
-        // Satın alma yapıldığında ücretsiz analiz hakkını kullanılmış olarak işaretle
-        await FirstTimeService.markFreeAnalysisUsed();
-        
-        Alert.alert(
-          `🎉 ${t('purchaseSuccess')}`,
-          `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-          [
-            {
-              text: t('startAnalyzing'),
-              onPress: () => navigation.navigate('Home')
-            }
-          ]
-        );
+        try {
+          // Gerçek IAP satın alma - artık promise dönüyor
+          const purchase = await IAPService.purchaseProduct(packageInfo.id);
+          
+          // Başarılı olduğunda ücretsiz analiz hakkını kullanılmış olarak işaretle
+          await FirstTimeService.markFreeAnalysisUsed();
+          
+          // Başarı mesajı göster
+          Alert.alert(
+            `🎉 ${t('purchaseSuccess')}`,
+            `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+            [
+              {
+                text: t('startAnalyzing'),
+                onPress: () => navigation.navigate('Home')
+              }
+            ]
+          );
+        } catch (purchaseError) {
+          // Satın alma hatası (user cancel, payment fail vs.)
+          if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {
+            // User cancel - sessizce geç
+            return;
+          }
+          throw purchaseError; // Diğer hatalar için dışarıya fırlat
+        }
       } else {
         Alert.alert(
           t('unavailable') || 'Kullanılamıyor',
