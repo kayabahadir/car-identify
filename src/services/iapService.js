@@ -141,8 +141,8 @@ class IAPService {
         console.log('💳 Initiating purchase for:', productId);
       }
       
-      // Promise oluştur ve bekle
-      return new Promise((resolve, reject) => {
+      // İki stratejili yaklaşım: Promise + Polling
+      return new Promise(async (resolve, reject) => {
         // Promise resolver'ı sakla
         this.purchasePromiseResolvers.set(productId, { resolve, reject });
         
@@ -155,13 +155,19 @@ class IAPService {
         // Promise resolver'a timeout'u da ekle
         this.purchasePromiseResolvers.get(productId).timeout = timeout;
         
-        // Gerçek satın alma işlemini başlat
-        InAppPurchases.purchaseItemAsync(productId).catch((error) => {
+        try {
+          // Gerçek satın alma işlemini başlat
+          await InAppPurchases.purchaseItemAsync(productId);
+          
+          // Fallback: Purchase history polling başlat
+          this.startPurchasePolling(productId, resolve, reject, timeout);
+          
+        } catch (error) {
           // purchaseItemAsync hata verirse
           clearTimeout(timeout);
           this.purchasePromiseResolvers.delete(productId);
           reject(error);
-        });
+        }
       });
       
     } catch (error) {
@@ -253,6 +259,9 @@ class IAPService {
     const resolver = this.purchasePromiseResolvers.get(productId);
     if (resolver) {
       clearTimeout(resolver.timeout);
+      if (resolver.pollInterval) {
+        clearInterval(resolver.pollInterval);
+      }
       this.purchasePromiseResolvers.delete(productId);
       resolver.resolve(purchase);
     }
@@ -265,6 +274,9 @@ class IAPService {
     const resolver = this.purchasePromiseResolvers.get(productId);
     if (resolver) {
       clearTimeout(resolver.timeout);
+      if (resolver.pollInterval) {
+        clearInterval(resolver.pollInterval);
+      }
       this.purchasePromiseResolvers.delete(productId);
       resolver.reject(error);
     }
@@ -276,9 +288,62 @@ class IAPService {
   static rejectAllPurchasePromises(error) {
     for (const [productId, resolver] of this.purchasePromiseResolvers.entries()) {
       clearTimeout(resolver.timeout);
+      if (resolver.pollInterval) {
+        clearInterval(resolver.pollInterval);
+      }
       resolver.reject(error);
     }
     this.purchasePromiseResolvers.clear();
+  }
+
+  /**
+   * Purchase history polling - Fallback strategy
+   */
+  static startPurchasePolling(productId, resolve, reject, mainTimeout) {
+    let pollCount = 0;
+    const maxPolls = 24; // 24 polls x 2.5s = 60s
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        pollCount++;
+        
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          return; // Ana timeout zaten reject edecek
+        }
+        
+        // Purchase history'yi kontrol et
+        const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+        
+        if (results && results.length > 0) {
+          // Son transaction'ı bul
+          const recentPurchase = results
+            .filter(p => p.productId === productId)
+            .sort((a, b) => b.purchaseTime - a.purchaseTime)[0];
+          
+          if (recentPurchase && !recentPurchase.acknowledged) {
+            // Yeni satın alma bulundu!
+            clearInterval(pollInterval);
+            clearTimeout(mainTimeout);
+            this.purchasePromiseResolvers.delete(productId);
+            
+            // Purchase'ı işle
+            await this.handleSuccessfulPurchase(recentPurchase);
+            resolve(recentPurchase);
+          }
+        }
+        
+      } catch (error) {
+        if (__DEV__) {
+          console.log('🔍 Purchase polling error:', error);
+        }
+      }
+    }, 2500); // Her 2.5 saniyede bir kontrol et
+    
+    // Polling interval'ı promise resolver'a ekle
+    if (this.purchasePromiseResolvers.has(productId)) {
+      this.purchasePromiseResolvers.get(productId).pollInterval = pollInterval;
+    }
   }
 
   /**
