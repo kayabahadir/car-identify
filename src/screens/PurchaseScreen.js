@@ -100,27 +100,26 @@ const PurchaseScreen = ({ navigation }) => {
           // Basit purchase
           await IAPServiceSimple.purchaseProduct(packageInfo.id);
           
-          // Credit kontrol ve refresh
-          const creditsAdded = await IAPServiceSimple.checkAndRefreshCredits(
-            packageInfo.id, 
-            packageInfo.credits
-          );
-          
+          // Apple UI kapandı, hemen success göster
           await FirstTimeService.markFreeAnalysisUsed();
           
-          if (creditsAdded) {
-            Alert.alert(
-              `🎉 ${t('purchaseSuccess')}`,
-              `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-              [{ text: t('startAnalyzing'), onPress: () => navigation.navigate('Home') }]
-            );
-          } else {
-            Alert.alert(
-              '⚠️ Satın Alma Tamamlandı',
-              'Satın alma başarılı ama krediler yükleniyor. Ana sayfada kredi durumunu kontrol edin.',
-              [{ text: 'Tamam', onPress: () => navigation.navigate('Home') }]
-            );
-          }
+          // Success mesajını hemen göster
+          Alert.alert(
+            `🎉 ${t('purchaseSuccess')}`,
+            `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+            [{ text: t('startAnalyzing'), onPress: () => navigation.navigate('Home') }]
+          );
+          
+          // Background'da credit processing yap
+          IAPServiceSimple.checkAndRefreshCredits(
+            packageInfo.id, 
+            packageInfo.credits
+          ).then(async (creditsAdded) => {
+            // Credit processing tamamlandı, ana sayfayı refresh et
+            setTimeout(loadCurrentCredits, 500);
+          }).catch((error) => {
+            console.error('Background credit processing failed:', error);
+          });
         } catch (purchaseError) {
           // Satın alma hatası (user cancel, payment fail vs.)
           if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {

@@ -140,28 +140,27 @@ const HomeScreen = ({ navigation, route }) => {
                     // Basit purchase
                     await IAPServiceSimple.purchaseProduct(packageInfo.id);
                     
-                    // Credit kontrol ve refresh
-                    const creditsAdded = await IAPServiceSimple.checkAndRefreshCredits(
-                      packageInfo.id, 
-                      packageInfo.credits
+                    // Apple UI kapandı, hemen success göster
+                    await FirstTimeService.markFreeAnalysisUsed();
+                    
+                    Alert.alert(
+                      `🎉 ${t('purchaseSuccess')}`,
+                      `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+                      [{ text: t('great') }]
                     );
                     
-                    await FirstTimeService.markFreeAnalysisUsed();
-                    await checkCreditStatus();
-                    
-                    if (creditsAdded) {
-                      Alert.alert(
-                        `🎉 ${t('purchaseSuccess')}`,
-                        `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-                        [{ text: t('great') }]
-                      );
-                    } else {
-                      Alert.alert(
-                        '⚠️ Satın Alma Tamamlandı',
-                        'Satın alma başarılı ama krediler yükleniyor. Kredi durumunu kontrol edin.',
-                        [{ text: 'Tamam' }]
-                      );
-                    }
+                    // Background'da credit processing ve UI refresh
+                    IAPServiceSimple.checkAndRefreshCredits(
+                      packageInfo.id, 
+                      packageInfo.credits
+                    ).then(async (creditsAdded) => {
+                      // Credit processing tamamlandı, UI refresh et
+                      await checkCreditStatus();
+                    }).catch((error) => {
+                      console.error('Background credit processing failed:', error);
+                      // Hata olsa bile UI'ı refresh et
+                      setTimeout(checkCreditStatus, 1000);
+                    });
                   } catch (purchaseError) {
                     // Satın alma hatası (user cancel, payment fail vs.)
                     if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {

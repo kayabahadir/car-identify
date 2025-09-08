@@ -109,13 +109,13 @@ class IAPServiceSimple {
       await InAppPurchases.purchaseItemAsync(productId);
       
       if (__DEV__) {
-        console.log('💳 Purchase request sent, waiting for Apple...');
+        console.log('✅ Purchase request completed successfully!');
       }
       
-      // Apple UI tamamlandıktan sonra credit refresh yapacağız
-      // Purchase listener çalışmazsa manuel credit ekleyeceğiz
+      // Apple UI kapandı, purchase başarılı
+      // Background credit processing UI tarafında yapılacak
       
-      return { productId, status: 'requested' };
+      return { productId, status: 'completed' };
       
     } catch (error) {
       console.error('❌ Purchase failed:', error);
