@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
-import IAPService from '../services/iapService';
+import IAPServiceSimple from '../services/iapServiceSimple';
 
 // Responsive design utilities
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -133,24 +133,35 @@ const HomeScreen = ({ navigation, route }) => {
             text: t('buy'),
             onPress: async () => {
               try {
-                const iapAvailable = await IAPService.isAvailable();
+                const iapAvailable = await IAPServiceSimple.isAvailable();
                 
                 if (iapAvailable) {
                   try {
-                    // Gerçek IAP satın alma - artık promise dönüyor
-                    const purchase = await IAPService.purchaseProduct(packageInfo.id);
+                    // Basit purchase
+                    await IAPServiceSimple.purchaseProduct(packageInfo.id);
                     
-                    // Başarılı olduğunda ücretsiz analiz hakkını kullanılmış olarak işaretle
+                    // Credit kontrol ve refresh
+                    const creditsAdded = await IAPServiceSimple.checkAndRefreshCredits(
+                      packageInfo.id, 
+                      packageInfo.credits
+                    );
+                    
                     await FirstTimeService.markFreeAnalysisUsed();
-                    
-                    // Kredi durumunu güncelle
                     await checkCreditStatus();
                     
-                    Alert.alert(
-                      `🎉 ${t('purchaseSuccess')}`,
-                      `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-                      [{ text: t('great') }]
-                    );
+                    if (creditsAdded) {
+                      Alert.alert(
+                        `🎉 ${t('purchaseSuccess')}`,
+                        `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+                        [{ text: t('great') }]
+                      );
+                    } else {
+                      Alert.alert(
+                        '⚠️ Satın Alma Tamamlandı',
+                        'Satın alma başarılı ama krediler yükleniyor. Kredi durumunu kontrol edin.',
+                        [{ text: 'Tamam' }]
+                      );
+                    }
                   } catch (purchaseError) {
                     // Satın alma hatası (user cancel, payment fail vs.)
                     if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {

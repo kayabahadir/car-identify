@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
-import IAPService from '../services/iapService';
+import IAPServiceSimple from '../services/iapServiceSimple';
 import FirstTimeService from '../services/firstTimeService';
 
 const PurchaseScreen = ({ navigation }) => {
@@ -93,27 +93,34 @@ const PurchaseScreen = ({ navigation }) => {
     setSelectedPackage(packageInfo.id);
 
     try {
-      const iapAvailable = await IAPService.isAvailable();
+      const iapAvailable = await IAPServiceSimple.isAvailable();
       
       if (iapAvailable) {
         try {
-          // Gerçek IAP satın alma - artık promise dönüyor
-          const purchase = await IAPService.purchaseProduct(packageInfo.id);
+          // Basit purchase
+          await IAPServiceSimple.purchaseProduct(packageInfo.id);
           
-          // Başarılı olduğunda ücretsiz analiz hakkını kullanılmış olarak işaretle
+          // Credit kontrol ve refresh
+          const creditsAdded = await IAPServiceSimple.checkAndRefreshCredits(
+            packageInfo.id, 
+            packageInfo.credits
+          );
+          
           await FirstTimeService.markFreeAnalysisUsed();
           
-          // Başarı mesajı göster
-          Alert.alert(
-            `🎉 ${t('purchaseSuccess')}`,
-            `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-            [
-              {
-                text: t('startAnalyzing'),
-                onPress: () => navigation.navigate('Home')
-              }
-            ]
-          );
+          if (creditsAdded) {
+            Alert.alert(
+              `🎉 ${t('purchaseSuccess')}`,
+              `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
+              [{ text: t('startAnalyzing'), onPress: () => navigation.navigate('Home') }]
+            );
+          } else {
+            Alert.alert(
+              '⚠️ Satın Alma Tamamlandı',
+              'Satın alma başarılı ama krediler yükleniyor. Ana sayfada kredi durumunu kontrol edin.',
+              [{ text: 'Tamam', onPress: () => navigation.navigate('Home') }]
+            );
+          }
         } catch (purchaseError) {
           // Satın alma hatası (user cancel, payment fail vs.)
           if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {
