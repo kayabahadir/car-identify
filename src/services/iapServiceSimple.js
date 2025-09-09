@@ -296,50 +296,68 @@ class IAPServiceSimple {
    */
   static async checkAndRefreshCredits(productId, expectedCredits) {
     try {
-      // 3 saniye bekle (Apple UI kapanması için)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
       const initialCredits = await CreditService.getCredits();
       
-      // 5 saniye boyunca her saniye kontrol et
-      for (let i = 0; i < 5; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (__DEV__) {
+        console.log('🔍 Fast credit check starting...', { productId, expectedCredits, initialCredits });
+      }
+      
+      // Hızlı check: İlk 2 saniye her 500ms kontrol et
+      for (let i = 0; i < 4; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         const currentCredits = await CreditService.getCredits();
         const creditIncrease = currentCredits - initialCredits;
         
         if (creditIncrease >= expectedCredits) {
           if (__DEV__) {
-            console.log(`✅ Credits increased by ${creditIncrease}, expected ${expectedCredits}`);
+            console.log(`✅ Fast credit check success! Credits increased by ${creditIncrease} in ${(i + 1) * 500}ms`);
           }
-          return true; // Credits başarıyla arttı
-        }
-      }
-      
-      // Hala artmadıysa manual refresh dene
-      if (__DEV__) {
-        console.log('⚠️ Credits not increased, trying manual refresh');
-      }
-      
-      const refreshed = await this.refreshCreditsAfterPurchase(productId);
-      
-      // Son çare: TestFlight sandbox workaround
-      if (!refreshed) {
-        if (__DEV__) {
-          console.log('🚨 Emergency TestFlight workaround: Manually adding credits');
-        }
-        
-        const packageInfo = this.CREDIT_PACKAGES[productId];
-        if (packageInfo) {
-          await CreditService.addCredits(packageInfo.credits, 'testflight_emergency_workaround');
           return true;
         }
       }
       
-      return refreshed;
+      // Purchase history'yi hemen kontrol et (beklemeden)
+      if (__DEV__) {
+        console.log('⚠️ Fast check failed, trying immediate purchase history check');
+      }
+      
+      const refreshed = await this.refreshCreditsAfterPurchase(productId);
+      
+      if (refreshed) {
+        if (__DEV__) {
+          console.log('✅ Purchase history refresh successful');
+        }
+        return true;
+      }
+      
+      // Son çare: Emergency workaround (hemen)
+      if (__DEV__) {
+        console.log('🚨 Emergency workaround: Adding credits immediately');
+      }
+      
+      const packageInfo = this.CREDIT_PACKAGES[productId];
+      if (packageInfo) {
+        await CreditService.addCredits(packageInfo.credits, 'fast_emergency_workaround');
+        return true;
+      }
+      
+      return false;
       
     } catch (error) {
-      console.error('❌ Check and refresh failed:', error);
+      console.error('❌ Fast credit check failed:', error);
+      
+      // Hata durumunda bile emergency workaround
+      try {
+        const packageInfo = this.CREDIT_PACKAGES[productId];
+        if (packageInfo) {
+          await CreditService.addCredits(packageInfo.credits, 'error_fallback_workaround');
+          return true;
+        }
+      } catch (fallbackError) {
+        console.error('❌ Even fallback failed:', fallbackError);
+      }
+      
       return false;
     }
   }

@@ -103,23 +103,34 @@ const PurchaseScreen = ({ navigation }) => {
           // Apple UI kapandı, hemen success göster
           await FirstTimeService.markFreeAnalysisUsed();
           
-          // Success mesajını hemen göster
+          // Background'da hızlı credit processing başlat
+          const creditProcessing = IAPServiceSimple.checkAndRefreshCredits(
+            packageInfo.id, 
+            packageInfo.credits
+          );
+          
+          // Success mesajını göster
           Alert.alert(
             `🎉 ${t('purchaseSuccess')}`,
             `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-            [{ text: t('startAnalyzing'), onPress: () => navigation.navigate('Home') }]
+            [{ 
+              text: t('startAnalyzing'), 
+              onPress: async () => {
+                // Ana sayfaya gitmeden önce credit processing'i bekle (max 3 saniye)
+                try {
+                  await Promise.race([
+                    creditProcessing,
+                    new Promise(resolve => setTimeout(() => resolve(false), 3000))
+                  ]);
+                } catch (error) {
+                  console.log('Credit processing timeout or error, proceeding...');
+                }
+                
+                // Ana sayfaya git ve force refresh
+                navigation.navigate('Home', { forceRefresh: Date.now() });
+              }
+            }]
           );
-          
-          // Background'da credit processing yap
-          IAPServiceSimple.checkAndRefreshCredits(
-            packageInfo.id, 
-            packageInfo.credits
-          ).then(async (creditsAdded) => {
-            // Credit processing tamamlandı, ana sayfayı refresh et
-            setTimeout(loadCurrentCredits, 500);
-          }).catch((error) => {
-            console.error('Background credit processing failed:', error);
-          });
         } catch (purchaseError) {
           // Satın alma hatası (user cancel, payment fail vs.)
           if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {

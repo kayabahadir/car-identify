@@ -49,6 +49,15 @@ const HomeScreen = ({ navigation, route }) => {
     checkCreditStatus();
     checkFirstTime();
     
+    // Force refresh kontrolü (purchase'dan sonra)
+    if (route?.params?.forceRefresh) {
+      // Kısa gecikme ile force refresh
+      setTimeout(() => {
+        checkCreditStatus();
+        navigation.setParams({ forceRefresh: null });
+      }, 500);
+    }
+    
     // Onboarding'den gelen satın alma parametrelerini kontrol et
     if (route?.params?.purchasePackage && route?.params?.fromOnboarding) {
       handleOnboardingPurchase(route.params.purchasePackage);
