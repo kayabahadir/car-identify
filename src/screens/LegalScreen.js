@@ -98,7 +98,7 @@ Hizmetimiz, 13 yaşın altındaki çocuklardan bilerek kişisel olarak tanımlan
 **İletişim**
 
 Bu Gizlilik Politikası hakkında sorularınız varsa:
-• E-posta: privacy@caridentify.app
+• E-posta: app.caridentify@gmail.com
 • Web sitesi: https://caridentify.app/contact
       `;
     } else {
@@ -169,7 +169,7 @@ Our Service does not knowingly collect personally identifiable information from 
 **Contact Us**
 
 If you have any questions about this Privacy Policy:
-• Email: privacy@caridentify.app
+• Email: app.caridentify@gmail.com
 • Website: https://caridentify.app/contact
       `;
     }
@@ -254,8 +254,8 @@ Car Identify, OpenAI'nin GPT-4 Vision API'si ile desteklenen gelişmiş bilgisay
 **6. İletişim Bilgileri**
 
 Bu Şartlar hakkında sorular için:
-• E-posta: legal@caridentify.app
-• Destek: support@caridentify.app
+• E-posta: app.caridentify@gmail.com
+• Destek: app.caridentify@gmail.com
 • Web sitesi: https://caridentify.app/contact
       `;
     } else {
@@ -336,8 +336,8 @@ Car Identify is an AI-powered mobile application that identifies and analyzes ve
 **6. Contact Information**
 
 For questions about these Terms:
-• Email: legal@caridentify.app
-• Support: support@caridentify.app
+• Email: app.caridentify@gmail.com
+• Support: app.caridentify@gmail.com
 • Website: https://caridentify.app/contact
       `;
     }

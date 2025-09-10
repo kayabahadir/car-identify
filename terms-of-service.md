@@ -138,8 +138,8 @@ You may not use the App to:
 ### 11. Contact Information
 
 For questions about these Terms:
-- **Email**: legal@caridentify.app
-- **Support**: support@caridentify.app
+- **Email**: app.caridentify@gmail.com
+- **Support**: app.caridentify@gmail.com
 - **Website**: https://caridentify.app/contact
 
 ### 12. Governing Law
@@ -286,8 +286,8 @@ Uygulamayı şu amaçlarla kullanmazsınız:
 ### 11. İletişim Bilgileri
 
 Bu Şartlar hakkında sorular için:
-- **E-posta**: legal@caridentify.app
-- **Destek**: support@caridentify.app
+- **E-posta**: app.caridentify@gmail.com
+- **Destek**: app.caridentify@gmail.com
 - **Web sitesi**: https://caridentify.app/contact
 
 ### 12. Geçerli Hukuk

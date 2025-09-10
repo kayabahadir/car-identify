@@ -71,10 +71,10 @@ Developer Website: https://[username].github.io/car-identify/
 ## 📧 Contact Information
 
 The website includes these contact emails:
-- `support@caridentify.app` - General support
-- `privacy@caridentify.app` - Privacy concerns
-- `legal@caridentify.app` - Legal matters
-- `billing@caridentify.app` - Billing issues
+- `app.caridentify@gmail.com` - General support
+- `app.caridentify@gmail.com` - Privacy concerns
+- `app.caridentify@gmail.com` - Legal matters
+- `app.caridentify@gmail.com` - Billing issues
 
 ## 🎨 Features
 

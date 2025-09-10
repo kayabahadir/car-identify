@@ -85,7 +85,7 @@ const SettingsScreen = ({ navigation }) => {
       t('contactMessage'),
       [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('email'), onPress: () => Linking.openURL('mailto:support@caridentify.com') },
+        { text: t('email'), onPress: () => Linking.openURL('mailto:app.caridentify@gmail.com') },
         { text: t('website'), onPress: () => Linking.openURL('https://caridentify.com') }
       ]
     );

@@ -79,7 +79,7 @@ We may update our Privacy Policy from time to time. We will notify you of any ch
 ### Contact Us
 
 If you have any questions about this Privacy Policy, please contact us:
-- **Email**: privacy@caridentify.app
+- **Email**: app.caridentify@gmail.com
 - **Website**: https://caridentify.app/contact
 
 ---
@@ -163,5 +163,5 @@ Gizlilik Politikamızı zaman zaman güncelleyebiliriz. Yeni Gizlilik Politikas�
 ### Bizimle İletişim
 
 Bu Gizlilik Politikası hakkında sorularınız varsa, lütfen bizimle iletişime geçin:
-- **E-posta**: privacy@caridentify.app
+- **E-posta**: app.caridentify@gmail.com
 - **Web sitesi**: https://caridentify.app/contact 

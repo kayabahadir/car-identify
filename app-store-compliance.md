@@ -177,10 +177,10 @@ Download now and discover the power of AI vehicle recognition!
 - [ ] Submit for content rating
 
 ## 📞 Contact Information
-- **Developer Email**: developer@caridentify.app
-- **Support Email**: support@caridentify.app
-- **Privacy Email**: privacy@caridentify.app
-- **Legal Email**: legal@caridentify.app
+- **Developer Email**: app.caridentify@gmail.com
+- **Support Email**: app.caridentify@gmail.com
+- **Privacy Email**: app.caridentify@gmail.com
+- **Legal Email**: app.caridentify@gmail.com
 
 ---
 
