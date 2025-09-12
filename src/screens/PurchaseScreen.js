@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
-import IAPServiceSimple from '../services/iapServiceSimple';
+import IAPService from '../services/iapService';
 import FirstTimeService from '../services/firstTimeService';
 
 const PurchaseScreen = ({ navigation }) => {
@@ -20,47 +20,53 @@ const PurchaseScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [currentCredits, setCurrentCredits] = useState(0);
+  const [iapProducts, setIapProducts] = useState([]); // Gerçek IAP ürünleri
 
-  // Kredi paketleri - YENİ Non-Consumable ID'ler
-  const packages = [
+  // Base package bilgileri (fiyatlar IAP'den gelecek)
+  const basePackages = [
     {
       id: 'com.caridentify.credits10.permanent',
       credits: 10,
-      price: '$1.99',
-      priceLocal: '₺59.99',
       title: language === 'tr' ? 'Başlangıç' : 'Starter',
       subtitle: language === 'tr' ? 'Küçük projeler için' : 'For small projects',
       popular: false,
-      savings: 0,
-      pricePerCredit: '$0.199'
+      savings: 0
     },
     {
       id: 'com.caridentify.credits50.permanent',
       credits: 50,
-      price: '$6.99',
-      priceLocal: '₺199.99',
       title: language === 'tr' ? 'Popüler' : 'Popular',
       subtitle: language === 'tr' ? 'En çok tercih edilen' : 'Most preferred',
       popular: true,
-      savings: 30,
-      pricePerCredit: '$0.139'
+      savings: 30
     },
     {
       id: 'com.caridentify.credits200.permanent',
       credits: 200,
-      price: '$19.99',
-      priceLocal: '₺599.99',
       title: language === 'tr' ? 'Premium' : 'Premium',
       subtitle: language === 'tr' ? 'Büyük projeler için' : 'For large projects',
       popular: false,
-      savings: 50,
-      pricePerCredit: '$0.099'
+      savings: 50
     }
   ];
+
+  // Gerçek fiyatlarla birleştirilmiş paketler
+  const packages = basePackages.map(basePackage => {
+    const iapProduct = iapProducts.find(product => product.productId === basePackage.id);
+    return {
+      ...basePackage,
+      price: iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...'),
+      priceLocal: iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...'),
+      pricePerCredit: iapProduct?.price ? 
+        `${(parseFloat(iapProduct.price.replace(/[^0-9.]/g, '')) / basePackage.credits).toFixed(3)}` : 
+        '...'
+    };
+  });
 
   useEffect(() => {
     loadCurrentCredits();
     initializeIAP();
+    loadIAPProducts(); // Gerçek ürün fiyatlarını yükle
     
     // Custom back button handler
     navigation.setOptions({
@@ -85,6 +91,62 @@ const PurchaseScreen = ({ navigation }) => {
       setCurrentCredits(credits);
     } catch (error) {
       console.error('Error loading credits:', error);
+    }
+  };
+
+  const loadIAPProducts = async () => {
+    try {
+      if (__DEV__) {
+        console.log('📦 Loading IAP products...');
+      }
+
+      const available = await IAPService.isAvailable();
+      if (available) {
+        // IAP service'i initialize et ve products yükle
+        await IAPService.initialize();
+        const products = await IAPService.getProducts();
+        
+        if (__DEV__) {
+          console.log('📦 Loaded IAP products:', products);
+          console.log('🔍 Products count:', products?.length || 0);
+        }
+
+        if (products && products.length > 0) {
+          setIapProducts(products);
+          if (__DEV__) {
+            products.forEach(product => {
+              console.log(`💰 ${product.productId}: ${product.price || 'No price'}`);
+            });
+          }
+        } else {
+          // Products yüklenemedi, fallback kullan
+          if (__DEV__) {
+            console.log('⚠️ No products loaded from IAP, using fallback');
+          }
+          setFallbackProducts();
+        }
+      } else {
+        // Demo mode - fallback fiyatları
+        if (__DEV__) {
+          console.log('🔧 IAP not available, using fallback prices for demo mode');
+        }
+        setFallbackProducts();
+      }
+    } catch (error) {
+      console.error('❌ Error loading IAP products:', error);
+      setFallbackProducts();
+    }
+  };
+
+  const setFallbackProducts = () => {
+    const fallbackProducts = [
+      { productId: 'com.caridentify.credits10.permanent', price: '$1.99' },
+      { productId: 'com.caridentify.credits50.permanent', price: '$6.99' },
+      { productId: 'com.caridentify.credits200.permanent', price: '$19.99' }
+    ];
+    setIapProducts(fallbackProducts);
+    if (__DEV__) {
+      console.log('🔧 Using fallback products:', fallbackProducts);
     }
   };
 
@@ -231,9 +293,12 @@ const PurchaseScreen = ({ navigation }) => {
       <View style={styles.priceSection}>
         <Text style={styles.price}>{pkg.priceLocal}</Text>
         <Text style={styles.priceOriginal}>{pkg.price}</Text>
-                        <Text style={styles.pricePerCredit}>
-                  {(parseFloat(pkg.priceLocal.replace('₺', '')) / pkg.credits).toFixed(2)}₺/{language === 'tr' ? 'kredi' : 'credit'}
-                </Text>
+                  <Text style={styles.pricePerCredit}>
+                    {pkg.pricePerCredit !== '...' ? 
+                      `${pkg.pricePerCredit}${pkg.price.includes('₺') ? '₺' : '$'}/${language === 'tr' ? 'kredi' : 'credit'}` :
+                      '...'
+                    }
+                  </Text>
       </View>
 
       <View style={styles.features}>
