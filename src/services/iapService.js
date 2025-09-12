@@ -29,11 +29,11 @@ class IAPService {
     ? `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/validate-receipt`
     : null;
 
-  // Ürün ID'leri - App Store Connect'te tanımlanmış olanlar
+  // Ürün ID'leri - YENİ Non-Consumable ürünler
   static PRODUCT_IDS = {
-    CREDITS_10: 'com.caridentify.credits10',
-    CREDITS_50: 'com.caridentify.credits50', 
-    CREDITS_200: 'com.caridentify.credits200'
+    CREDITS_10: 'com.caridentify.credits10.permanent',
+    CREDITS_50: 'com.caridentify.credits50.permanent', 
+    CREDITS_200: 'com.caridentify.credits200.permanent'
   };
 
   // Kredi paketleri mapping

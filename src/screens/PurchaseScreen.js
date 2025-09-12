@@ -21,10 +21,10 @@ const PurchaseScreen = ({ navigation }) => {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [currentCredits, setCurrentCredits] = useState(0);
 
-  // Kredi paketleri
+  // Kredi paketleri - YENİ Non-Consumable ID'ler
   const packages = [
     {
-      id: 'com.caridentify.credits10',
+      id: 'com.caridentify.credits10.permanent',
       credits: 10,
       price: '$1.99',
       priceLocal: '₺59.99',
@@ -35,7 +35,7 @@ const PurchaseScreen = ({ navigation }) => {
       pricePerCredit: '$0.199'
     },
     {
-      id: 'com.caridentify.credits50',
+      id: 'com.caridentify.credits50.permanent',
       credits: 50,
       price: '$6.99',
       priceLocal: '₺199.99',
@@ -46,7 +46,7 @@ const PurchaseScreen = ({ navigation }) => {
       pricePerCredit: '$0.139'
     },
     {
-      id: 'com.caridentify.credits200',
+      id: 'com.caridentify.credits200.permanent',
       credits: 200,
       price: '$19.99',
       priceLocal: '₺599.99',
