@@ -15,6 +15,14 @@ import CreditService from '../services/creditService';
 import IAPService from '../services/iapService';
 import FirstTimeService from '../services/firstTimeService';
 
+// IAP modülünü conditionally import et
+let InAppPurchases = null;
+try {
+  InAppPurchases = require('expo-in-app-purchases');
+} catch (error) {
+  console.warn('⚠️ InAppPurchases module not available');
+}
+
 const PurchaseScreen = ({ navigation }) => {
   const { language, t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -172,21 +180,44 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const handlePurchase = async (packageInfo) => {
+    console.log('🛒 Starting purchase for:', packageInfo);
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
+      console.log('🔍 Checking IAP availability...');
       const iapAvailable = await IAPService.isAvailable();
+      console.log('🔍 IAP available:', iapAvailable);
       
       if (iapAvailable) {
         try {
-          // Basit purchase
+          console.log('💳 Starting purchase process...');
+          
+          // Safer approach - check if IAP module exists
+          if (!InAppPurchases) {
+            console.log('🔧 Using mock purchase (no IAP module)');
+            // Mock purchase for demo
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await FirstTimeService.markFreeAnalysisUsed();
+            
+            Alert.alert(
+              `🎉 Demo Purchase Success`,
+              `Mock purchase completed for ${packageInfo.credits} credits.`,
+              [{ 
+                text: 'OK', 
+                onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
+              }]
+            );
+            return;
+          }
+          
+          // Real IAP purchase
+          console.log('💳 Calling IAPService.purchaseProduct...');
           await IAPService.purchaseProduct(packageInfo.id);
+          console.log('✅ Purchase completed successfully');
           
-          // Apple UI kapandı, hemen success göster
+          // Mark free analysis as used
           await FirstTimeService.markFreeAnalysisUsed();
-          
-          // Purchase successful, credits should be added automatically
           
           // Success mesajını göster
           Alert.alert(
@@ -200,15 +231,21 @@ const PurchaseScreen = ({ navigation }) => {
               }
             }]
           );
+          
         } catch (purchaseError) {
+          console.error('❌ Purchase error details:', purchaseError);
+          
           // Satın alma hatası (user cancel, payment fail vs.)
-          if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {
-            // User cancel - sessizce geç
+          if (purchaseError.message?.includes('iptal') || 
+              purchaseError.message?.includes('cancel') ||
+              purchaseError.message?.includes('cancelled')) {
+            console.log('ℹ️ User cancelled purchase');
             return;
           }
           throw purchaseError; // Diğer hatalar için dışarıya fırlat
         }
       } else {
+        console.log('⚠️ IAP not available');
         Alert.alert(
           t('unavailable') || 'Kullanılamıyor',
           t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
@@ -219,10 +256,12 @@ const PurchaseScreen = ({ navigation }) => {
       setTimeout(loadCurrentCredits, 1000);
 
     } catch (error) {
-      console.error('Purchase error:', error);
+      console.error('❌ Critical purchase error:', error);
+      console.error('❌ Error stack:', error.stack);
+      
       Alert.alert(
         'Satın Alma Hatası',
-        error.message || 'Satın alma işlemi başarısız oldu. Lütfen tekrar deneyin.',
+        `Hata: ${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin veya uygulama geliştiricisi ile iletişime geçin.`,
         [{ text: 'Tamam' }]
       );
     } finally {
