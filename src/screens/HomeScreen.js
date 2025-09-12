@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
-import IAPServiceSimple from '../services/iapServiceSimple';
+import IAPService from '../services/iapService';
 
 // Responsive design utilities
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -142,12 +142,12 @@ const HomeScreen = ({ navigation, route }) => {
             text: t('buy'),
             onPress: async () => {
               try {
-                const iapAvailable = await IAPServiceSimple.isAvailable();
+                const iapAvailable = await IAPService.isAvailable();
                 
                 if (iapAvailable) {
                   try {
                     // Basit purchase
-                    await IAPServiceSimple.purchaseProduct(packageInfo.id);
+                    await IAPService.purchaseProduct(packageInfo.id);
                     
                     // Apple UI kapandı, hemen success göster
                     await FirstTimeService.markFreeAnalysisUsed();
@@ -158,18 +158,10 @@ const HomeScreen = ({ navigation, route }) => {
                       [{ text: t('great') }]
                     );
                     
-                    // Background'da credit processing ve UI refresh
-                    IAPServiceSimple.checkAndRefreshCredits(
-                      packageInfo.id, 
-                      packageInfo.credits
-                    ).then(async (creditsAdded) => {
-                      // Credit processing tamamlandı, UI refresh et
+                    // Background'da UI refresh
+                    setTimeout(async () => {
                       await checkCreditStatus();
-                    }).catch((error) => {
-                      console.error('Background credit processing failed:', error);
-                      // Hata olsa bile UI'ı refresh et
-                      setTimeout(checkCreditStatus, 1000);
-                    });
+                    }, 1000);
                   } catch (purchaseError) {
                     // Satın alma hatası (user cancel, payment fail vs.)
                     if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {

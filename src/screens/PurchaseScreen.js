@@ -53,10 +53,14 @@ const PurchaseScreen = ({ navigation }) => {
   // Gerçek fiyatlarla birleştirilmiş paketler
   const packages = basePackages.map(basePackage => {
     const iapProduct = iapProducts.find(product => product.productId === basePackage.id);
+    const currentPrice = iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...');
+    const originalPrice = getOriginalPrice(currentPrice, basePackage.savings);
+    
     return {
       ...basePackage,
-      price: iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...'),
-      priceLocal: iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...'),
+      price: currentPrice, // Gerçek satış fiyatı
+      priceOriginal: originalPrice, // İndirimli gösterim için orijinal fiyat
+      priceLocal: currentPrice,
       pricePerCredit: iapProduct?.price ? 
         `${(parseFloat(iapProduct.price.replace(/[^0-9.]/g, '')) / basePackage.credits).toFixed(3)}` : 
         '...'
@@ -150,26 +154,39 @@ const PurchaseScreen = ({ navigation }) => {
     }
   };
 
+  // İndirimli fiyat gösterimi için original fiyatları hesapla
+  const getOriginalPrice = (currentPrice, savingsPercent) => {
+    if (!currentPrice || savingsPercent === 0) return currentPrice;
+    
+    // $ veya ₺ sembolünü çıkar ve sayıyı al
+    const numericPrice = parseFloat(currentPrice.replace(/[^0-9.]/g, ''));
+    if (isNaN(numericPrice)) return currentPrice;
+    
+    // İndirim yüzdesine göre orijinal fiyatı hesapla
+    const originalPrice = numericPrice / (1 - savingsPercent / 100);
+    
+    // Para birimi sembolünü koru
+    const currencySymbol = currentPrice.includes('₺') ? '₺' : '$';
+    
+    return `${currencySymbol}${originalPrice.toFixed(2)}`;
+  };
+
   const handlePurchase = async (packageInfo) => {
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
-      const iapAvailable = await IAPServiceSimple.isAvailable();
+      const iapAvailable = await IAPService.isAvailable();
       
       if (iapAvailable) {
         try {
           // Basit purchase
-          await IAPServiceSimple.purchaseProduct(packageInfo.id);
+          await IAPService.purchaseProduct(packageInfo.id);
           
           // Apple UI kapandı, hemen success göster
           await FirstTimeService.markFreeAnalysisUsed();
           
-          // Background'da hızlı credit processing başlat
-          const creditProcessing = IAPServiceSimple.checkAndRefreshCredits(
-            packageInfo.id, 
-            packageInfo.credits
-          );
+          // Purchase successful, credits should be added automatically
           
           // Success mesajını göster
           Alert.alert(
@@ -177,17 +194,7 @@ const PurchaseScreen = ({ navigation }) => {
             `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
             [{ 
               text: t('startAnalyzing'), 
-              onPress: async () => {
-                // Ana sayfaya gitmeden önce credit processing'i bekle (max 3 saniye)
-                try {
-                  await Promise.race([
-                    creditProcessing,
-                    new Promise(resolve => setTimeout(() => resolve(false), 3000))
-                  ]);
-                } catch (error) {
-                  console.log('Credit processing timeout or error, proceeding...');
-                }
-                
+              onPress: () => {
                 // Ana sayfaya git ve force refresh
                 navigation.navigate('Home', { forceRefresh: Date.now() });
               }
@@ -291,14 +298,16 @@ const PurchaseScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.priceSection}>
-        <Text style={styles.price}>{pkg.priceLocal}</Text>
-        <Text style={styles.priceOriginal}>{pkg.price}</Text>
-                  <Text style={styles.pricePerCredit}>
-                    {pkg.pricePerCredit !== '...' ? 
-                      `${pkg.pricePerCredit}${pkg.price.includes('₺') ? '₺' : '$'}/${language === 'tr' ? 'kredi' : 'credit'}` :
-                      '...'
-                    }
-                  </Text>
+        <Text style={styles.price}>{pkg.price}</Text>
+        {pkg.savings > 0 && (
+          <Text style={styles.priceOriginal}>{pkg.priceOriginal}</Text>
+        )}
+        <Text style={styles.pricePerCredit}>
+          {pkg.pricePerCredit !== '...' ? 
+            `${pkg.pricePerCredit}${pkg.price.includes('₺') ? '₺' : '$'}/${language === 'tr' ? 'kredi' : 'credit'}` :
+            '...'
+          }
+        </Text>
       </View>
 
       <View style={styles.features}>
