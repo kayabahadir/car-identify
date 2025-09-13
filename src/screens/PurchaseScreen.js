@@ -31,7 +31,7 @@ const PurchaseScreen = ({ navigation }) => {
   const [iapProducts, setIapProducts] = useState([]); // Gerçek IAP ürünleri
 
   // Base package bilgileri (fiyatlar IAP'den gelecek)
-  const basePackages = [
+  const basePackages = React.useMemo(() => [
     {
       id: 'com.caridentify.credits10.permanent',
       credits: 10,
@@ -56,24 +56,47 @@ const PurchaseScreen = ({ navigation }) => {
       popular: false,
       savings: 50
     }
-  ];
+  ], [language]);
 
   // Gerçek fiyatlarla birleştirilmiş paketler
-  const packages = basePackages.map(basePackage => {
-    const iapProduct = iapProducts.find(product => product.productId === basePackage.id);
-    const currentPrice = iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...');
-    const originalPrice = getOriginalPrice(currentPrice, basePackage.savings);
-    
-    return {
-      ...basePackage,
-      price: currentPrice, // Gerçek satış fiyatı
-      priceOriginal: originalPrice, // İndirimli gösterim için orijinal fiyat
-      priceLocal: currentPrice,
-      pricePerCredit: iapProduct?.price ? 
-        `${(parseFloat(iapProduct.price.replace(/[^0-9.]/g, '')) / basePackage.credits).toFixed(3)}` : 
-        '...'
-    };
-  });
+  const packages = React.useMemo(() => {
+    return basePackages.map(basePackage => {
+      try {
+        const iapProduct = iapProducts.find(product => product.productId === basePackage.id);
+        const currentPrice = iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...');
+        const originalPrice = getOriginalPrice(currentPrice, basePackage.savings);
+        
+        let pricePerCredit = '...';
+        if (iapProduct?.price) {
+          try {
+            const numericPrice = parseFloat(iapProduct.price.replace(/[^0-9.]/g, ''));
+            if (!isNaN(numericPrice) && numericPrice > 0 && basePackage.credits > 0) {
+              pricePerCredit = (numericPrice / basePackage.credits).toFixed(3);
+            }
+          } catch (error) {
+            console.error('❌ Error calculating price per credit:', error);
+          }
+        }
+        
+        return {
+          ...basePackage,
+          price: currentPrice, // Gerçek satış fiyatı
+          priceOriginal: originalPrice, // İndirimli gösterim için orijinal fiyat
+          priceLocal: currentPrice,
+          pricePerCredit: pricePerCredit
+        };
+      } catch (error) {
+        console.error('❌ Error processing package:', basePackage.id, error);
+        return {
+          ...basePackage,
+          price: 'Error',
+          priceOriginal: 'Error',
+          priceLocal: 'Error',
+          pricePerCredit: '...'
+        };
+      }
+    });
+  }, [basePackages, iapProducts, language]);
 
   useEffect(() => {
     loadCurrentCredits();
@@ -164,19 +187,33 @@ const PurchaseScreen = ({ navigation }) => {
 
   // İndirimli fiyat gösterimi için original fiyatları hesapla
   const getOriginalPrice = (currentPrice, savingsPercent) => {
-    if (!currentPrice || savingsPercent === 0) return currentPrice;
-    
-    // $ veya ₺ sembolünü çıkar ve sayıyı al
-    const numericPrice = parseFloat(currentPrice.replace(/[^0-9.]/g, ''));
-    if (isNaN(numericPrice)) return currentPrice;
-    
-    // İndirim yüzdesine göre orijinal fiyatı hesapla
-    const originalPrice = numericPrice / (1 - savingsPercent / 100);
-    
-    // Para birimi sembolünü koru
-    const currencySymbol = currentPrice.includes('₺') ? '₺' : '$';
-    
-    return `${currencySymbol}${originalPrice.toFixed(2)}`;
+    try {
+      if (!currentPrice || savingsPercent === 0 || savingsPercent >= 100) {
+        return currentPrice;
+      }
+      
+      // $ veya ₺ sembolünü çıkar ve sayıyı al
+      const numericPrice = parseFloat(currentPrice.replace(/[^0-9.]/g, ''));
+      if (isNaN(numericPrice) || numericPrice <= 0) {
+        return currentPrice;
+      }
+      
+      // İndirim yüzdesine göre orijinal fiyatı hesapla
+      const discountMultiplier = 1 - savingsPercent / 100;
+      if (discountMultiplier <= 0) {
+        return currentPrice;
+      }
+      
+      const originalPrice = numericPrice / discountMultiplier;
+      
+      // Para birimi sembolünü koru
+      const currencySymbol = currentPrice.includes('₺') ? '₺' : '$';
+      
+      return `${currencySymbol}${originalPrice.toFixed(2)}`;
+    } catch (error) {
+      console.error('❌ Error in getOriginalPrice:', error);
+      return currentPrice;
+    }
   };
 
   const handlePurchase = async (packageInfo) => {
