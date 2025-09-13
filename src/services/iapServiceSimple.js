@@ -6,11 +6,8 @@ let InAppPurchases = null;
 try {
   InAppPurchases = require('expo-in-app-purchases');
 } catch (error) {
-  if (!__DEV__) {
-    console.error('❌ CRITICAL: InAppPurchases module not available in production');
-    throw new Error('IAP module required for production builds');
-  }
-  console.warn('⚠️ InAppPurchases module not available in development environment');
+  console.error('❌ InAppPurchases module load error:', error);
+  throw error;
 }
 
 /**
@@ -112,9 +109,6 @@ class IAPServiceSimple {
         console.log('✅ Purchase request completed successfully!');
       }
       
-      // Apple UI kapandı, purchase başarılı
-      // Background credit processing UI tarafında yapılacak
-      
       return { productId, status: 'completed' };
       
     } catch (error) {
@@ -138,227 +132,47 @@ class IAPServiceSimple {
       console.log('🧪 Mock purchase for:', productId);
     }
     
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     const packageInfo = this.CREDIT_PACKAGES[productId];
     if (packageInfo) {
-      await CreditService.addCredits(packageInfo.credits, 'in_app_purchase');
+      await CreditService.addCredits(packageInfo.credits);
+      if (__DEV__) {
+        console.log(`✅ Mock purchase successful: +${packageInfo.credits} credits`);
+      }
     }
     
-    return { productId, status: 'completed', credits: packageInfo.credits };
+    return { productId, status: 'mock_completed' };
   }
 
-  /**
-   * Purchase listener - basit
-   */
   static setPurchaseListener() {
-    if (!InAppPurchases) {
-      return;
-    }
-
-    if (this.purchaseListener) {
-      this.purchaseListener.remove();
-    }
-
+    if (!InAppPurchases) return;
+    
     this.purchaseListener = InAppPurchases.setPurchaseListener(({ responseCode, results, errorCode }) => {
-      if (__DEV__) {
-        console.log('📱 Purchase listener called:', { responseCode, results, errorCode });
-      }
-
-      if (InAppPurchases && responseCode === InAppPurchases.IAPResponseCode.OK) {
-        // Başarılı satın almalar
+      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
         results?.forEach(purchase => {
-          if (purchase.acknowledged === false) {
-            this.handleSuccessfulPurchase(purchase);
-          }
+          this.handleSuccessfulPurchase(purchase);
         });
-      } else if (InAppPurchases && responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-        if (__DEV__) {
-          console.log('🚫 User canceled purchase');
-        }
-      } else {
-        console.error('❌ Purchase failed with response code:', responseCode, errorCode);
       }
     });
   }
 
-  /**
-   * Başarılı purchase'ı işle - basit
-   */
   static async handleSuccessfulPurchase(purchase) {
     try {
-      const { productId } = purchase;
-      const packageInfo = this.CREDIT_PACKAGES[productId];
-      
+      const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
       if (!packageInfo) {
-        console.error('❌ Unknown product:', productId);
+        console.error('❌ Unknown product ID:', purchase.productId);
         return;
       }
 
-      // Kredileri ekle
-      await CreditService.addCredits(packageInfo.credits, 'in_app_purchase');
+      await CreditService.addCredits(packageInfo.credits);
       
-      // Transaction'ı acknowledge et
-      if (InAppPurchases) {
-        await InAppPurchases.finishTransactionAsync(purchase, true);
+      if (InAppPurchases && !purchase.acknowledged) {
+        await InAppPurchases.finishTransactionAsync(purchase, false);
       }
-      
-      if (__DEV__) {
-        console.log('✅ Purchase processed successfully:', productId);
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to process purchase:', error);
-    }
-  }
 
-  /**
-   * Kredi refresh - Manual fallback
-   */
-  static async refreshCreditsAfterPurchase(productId) {
-    try {
-      if (__DEV__) {
-        console.log('🔄 Manual credit refresh for:', productId);
-      }
-      
-      const packageInfo = this.CREDIT_PACKAGES[productId];
-      if (!packageInfo) {
-        console.error('❌ Unknown product in refresh:', productId);
-        console.log('Available products:', Object.keys(this.CREDIT_PACKAGES));
-        return false;
-      }
-      
-      // Purchase history'den bu productId için son 2 dakikada transaction var mı?
-      if (InAppPurchases) {
-        try {
-          const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-          const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
-          
-          if (__DEV__) {
-            console.log('🔍 Total purchase history items:', results?.length || 0);
-            results?.forEach((p, index) => {
-              console.log(`🔍 Purchase ${index + 1}:`, {
-                productId: p.productId,
-                transactionId: p.transactionId,
-                purchaseTime: new Date(p.purchaseTime).toISOString(),
-                acknowledged: p.acknowledged,
-                timeDiff: `${Math.round((Date.now() - p.purchaseTime) / 1000)}s ago`
-              });
-            });
-          }
-          
-          const recentPurchases = results?.filter(p => 
-            p.productId === productId && 
-            p.purchaseTime >= twoMinutesAgo
-          );
-          
-          if (__DEV__) {
-            console.log(`🔍 Recent purchases for ${productId}:`, recentPurchases?.length || 0);
-          }
-          
-          const unacknowledgedPurchase = recentPurchases?.find(p => !p.acknowledged);
-          
-          if (unacknowledgedPurchase) {
-            if (__DEV__) {
-              console.log('✅ Found unprocessed purchase, adding credits:', unacknowledgedPurchase);
-            }
-            
-            await this.handleSuccessfulPurchase(unacknowledgedPurchase);
-            return true;
-          } else {
-            // Acknowledged olan varsa manuel kredi ekleme yap (TestFlight workaround)
-            const acknowledgedPurchase = recentPurchases?.find(p => p.acknowledged);
-            if (acknowledgedPurchase) {
-              if (__DEV__) {
-                console.log('⚠️ Found acknowledged purchase, manually adding credits as TestFlight workaround');
-              }
-              
-              // Manuel kredi ekleme (TestFlight sandbox workaround)
-              await CreditService.addCredits(packageInfo.credits, 'testflight_workaround');
-              return true;
-            }
-          }
-          
-        } catch (error) {
-          console.error('❌ Could not check purchase history:', error);
-        }
-      }
-      
-      return false;
     } catch (error) {
-      console.error('❌ Credit refresh failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Purchase'dan sonra credit kontrol helper
-   */
-  static async checkAndRefreshCredits(productId, expectedCredits) {
-    try {
-      const initialCredits = await CreditService.getCredits();
-      
-      if (__DEV__) {
-        console.log('🔍 Fast credit check starting...', { productId, expectedCredits, initialCredits });
-      }
-      
-      // Hızlı check: İlk 2 saniye her 500ms kontrol et
-      for (let i = 0; i < 4; i++) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const currentCredits = await CreditService.getCredits();
-        const creditIncrease = currentCredits - initialCredits;
-        
-        if (creditIncrease >= expectedCredits) {
-          if (__DEV__) {
-            console.log(`✅ Fast credit check success! Credits increased by ${creditIncrease} in ${(i + 1) * 500}ms`);
-          }
-          return true;
-        }
-      }
-      
-      // Purchase history'yi hemen kontrol et (beklemeden)
-      if (__DEV__) {
-        console.log('⚠️ Fast check failed, trying immediate purchase history check');
-      }
-      
-      const refreshed = await this.refreshCreditsAfterPurchase(productId);
-      
-      if (refreshed) {
-        if (__DEV__) {
-          console.log('✅ Purchase history refresh successful');
-        }
-        return true;
-      }
-      
-      // Son çare: Emergency workaround (hemen)
-      if (__DEV__) {
-        console.log('🚨 Emergency workaround: Adding credits immediately');
-      }
-      
-      const packageInfo = this.CREDIT_PACKAGES[productId];
-      if (packageInfo) {
-        await CreditService.addCredits(packageInfo.credits, 'fast_emergency_workaround');
-        return true;
-      }
-      
-      return false;
-      
-    } catch (error) {
-      console.error('❌ Fast credit check failed:', error);
-      
-      // Hata durumunda bile emergency workaround
-      try {
-        const packageInfo = this.CREDIT_PACKAGES[productId];
-        if (packageInfo) {
-          await CreditService.addCredits(packageInfo.credits, 'error_fallback_workaround');
-          return true;
-        }
-      } catch (fallbackError) {
-        console.error('❌ Even fallback failed:', fallbackError);
-      }
-      
-      return false;
+      console.error('❌ Error handling successful purchase:', error);
     }
   }
 
@@ -381,61 +195,6 @@ class IAPServiceSimple {
 
   static getProducts() {
     return this.products;
-  }
-
-  /**
-   * Emergency manual credit add - TestFlight için
-   */
-  static async emergencyAddCredits(productId) {
-    try {
-      const packageInfo = this.CREDIT_PACKAGES[productId];
-      if (packageInfo) {
-        console.log('🚨 Emergency adding credits manually:', packageInfo.credits);
-        await CreditService.addCredits(packageInfo.credits, 'manual_testflight_fix');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('❌ Emergency credit add failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Debug helper - TestFlight'ta kullanım için
-   */
-  static async debugPurchaseStatus() {
-    try {
-      console.log('🔍 IAP Debug Status:');
-      console.log('- Initialized:', this.isInitialized);
-      console.log('- Products:', this.products.length);
-      console.log('- Available products:', Object.keys(this.CREDIT_PACKAGES));
-      
-      if (InAppPurchases) {
-        const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-        console.log('- Purchase history count:', results?.length || 0);
-        
-        if (results && results.length > 0) {
-          console.log('Recent purchases:');
-          results.slice(0, 3).forEach((p, i) => {
-            console.log(`  ${i + 1}. ${p.productId} - ${new Date(p.purchaseTime).toISOString()} - Ack: ${p.acknowledged}`);
-          });
-        }
-      }
-      
-      const currentCredits = await CreditService.getCredits();
-      console.log('- Current credits:', currentCredits);
-      
-      return {
-        initialized: this.isInitialized,
-        products: this.products.length,
-        currentCredits,
-        historyCount: InAppPurchases ? (await InAppPurchases.getPurchaseHistoryAsync()).results?.length || 0 : 0
-      };
-    } catch (error) {
-      console.error('❌ Debug failed:', error);
-      return null;
-    }
   }
 }
 

@@ -30,6 +30,37 @@ const PurchaseScreen = ({ navigation }) => {
   const [currentCredits, setCurrentCredits] = useState(0);
   const [iapProducts, setIapProducts] = useState([]); // Gerçek IAP ürünleri
 
+  // İndirimli fiyat gösterimi için original fiyatları hesapla
+  const getOriginalPrice = (currentPrice, savingsPercent) => {
+    try {
+      if (!currentPrice || savingsPercent === 0 || savingsPercent >= 100) {
+        return currentPrice;
+      }
+      
+      // $ veya ₺ sembolünü çıkar ve sayıyı al
+      const numericPrice = parseFloat(currentPrice.replace(/[^0-9.]/g, ''));
+      if (isNaN(numericPrice) || numericPrice <= 0) {
+        return currentPrice;
+      }
+      
+      // İndirim yüzdesine göre orijinal fiyatı hesapla
+      const discountMultiplier = 1 - savingsPercent / 100;
+      if (discountMultiplier <= 0) {
+        return currentPrice;
+      }
+      
+      const originalPrice = numericPrice / discountMultiplier;
+      
+      // Para birimi sembolünü koru
+      const currencySymbol = currentPrice.includes('₺') ? '₺' : '$';
+      
+      return `${currencySymbol}${originalPrice.toFixed(2)}`;
+    } catch (error) {
+      console.error('❌ Error in getOriginalPrice:', error);
+      return currentPrice;
+    }
+  };
+
   // Base package bilgileri (fiyatlar IAP'den gelecek)
   const basePackages = React.useMemo(() => [
     {
@@ -96,7 +127,7 @@ const PurchaseScreen = ({ navigation }) => {
         };
       }
     });
-  }, [basePackages, iapProducts, language]);
+  }, [basePackages, iapProducts, language, getOriginalPrice]);
 
   useEffect(() => {
     loadCurrentCredits();
@@ -182,37 +213,6 @@ const PurchaseScreen = ({ navigation }) => {
     setIapProducts(fallbackProducts);
     if (__DEV__) {
       console.log('🔧 Using fallback products:', fallbackProducts);
-    }
-  };
-
-  // İndirimli fiyat gösterimi için original fiyatları hesapla
-  const getOriginalPrice = (currentPrice, savingsPercent) => {
-    try {
-      if (!currentPrice || savingsPercent === 0 || savingsPercent >= 100) {
-        return currentPrice;
-      }
-      
-      // $ veya ₺ sembolünü çıkar ve sayıyı al
-      const numericPrice = parseFloat(currentPrice.replace(/[^0-9.]/g, ''));
-      if (isNaN(numericPrice) || numericPrice <= 0) {
-        return currentPrice;
-      }
-      
-      // İndirim yüzdesine göre orijinal fiyatı hesapla
-      const discountMultiplier = 1 - savingsPercent / 100;
-      if (discountMultiplier <= 0) {
-        return currentPrice;
-      }
-      
-      const originalPrice = numericPrice / discountMultiplier;
-      
-      // Para birimi sembolünü koru
-      const currencySymbol = currentPrice.includes('₺') ? '₺' : '$';
-      
-      return `${currencySymbol}${originalPrice.toFixed(2)}`;
-    } catch (error) {
-      console.error('❌ Error in getOriginalPrice:', error);
-      return currentPrice;
     }
   };
 
@@ -345,21 +345,27 @@ const PurchaseScreen = ({ navigation }) => {
       key={pkg.id}
       style={[
         styles.packageCard,
-        pkg.popular && styles.popularPackage,
-        selectedPackage === pkg.id && styles.selectedPackage
+        pkg.popular && styles.popularCard,
+        selectedPackage === pkg.id && styles.selectedCard,
       ]}
       onPress={() => handlePurchase(pkg)}
       disabled={loading}
     >
+      {loading && selectedPackage === pkg.id && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#ffffff" />
+        </View>
+      )}
+
       {pkg.popular && (
         <View style={styles.popularBadge}>
-                              <Text style={styles.popularText}>{language === 'tr' ? 'EN POPÜLER' : 'MOST POPULAR'}</Text>
+          <Text style={styles.popularText}>{language === 'tr' ? 'EN POPÜLER' : 'MOST POPULAR'}</Text>
         </View>
       )}
       
       {pkg.savings > 0 && (
         <View style={styles.savingsBadge}>
-                              <Text style={styles.savingsText}>%{pkg.savings} {language === 'tr' ? 'İNDİRİM' : 'DISCOUNT'}</Text>
+          <Text style={styles.savingsText}>%{pkg.savings} {language === 'tr' ? 'İNDİRİM' : 'DISCOUNT'}</Text>
         </View>
       )}
 
@@ -370,7 +376,7 @@ const PurchaseScreen = ({ navigation }) => {
 
       <View style={styles.creditsSection}>
         <Text style={styles.creditsNumber}>{pkg.credits}</Text>
-                        <Text style={styles.creditsText}>{language === 'tr' ? 'Analiz Kredisi' : 'Analysis Credits'}</Text>
+        <Text style={styles.creditsText}>{language === 'tr' ? 'Analiz Kredisi' : 'Analysis Credits'}</Text>
       </View>
 
       <View style={styles.priceSection}>
@@ -389,99 +395,86 @@ const PurchaseScreen = ({ navigation }) => {
       <View style={styles.features}>
         <View style={styles.featureRow}>
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
-                              <Text style={styles.featureText}>{t('unlimitedAnalysisRights')}</Text>
+          <Text style={styles.featureText}>{t('unlimitedAnalysisRights')}</Text>
         </View>
         <View style={styles.featureRow}>
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
-                              <Text style={styles.featureText}>{t('detailedVehicleInfo')}</Text>
+          <Text style={styles.featureText}>{t('detailedVehicleInformation')}</Text>
         </View>
         <View style={styles.featureRow}>
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
-                              <Text style={styles.featureText}>{t('pastAnalysisRecords')}</Text>
+          <Text style={styles.featureText}>{t('pastAnalysisRecords')}</Text>
         </View>
       </View>
 
-      {loading && selectedPackage === pkg.id ? (
-        <View style={styles.loadingButton}>
-          <ActivityIndicator color="white" size="small" />
-                              <Text style={styles.loadingText}>{t('processing')}</Text>
-        </View>
-      ) : (
-        <View style={styles.purchaseButton}>
-                              <Text style={styles.purchaseButtonText}>{t('buy')}</Text>
-        </View>
-      )}
+      <View style={styles.buyButton}>
+        <Text style={styles.buyButtonText}>
+          {loading && selectedPackage === pkg.id ? 
+            (language === 'tr' ? 'Satın Alınıyor...' : 'Purchasing...') : 
+            (language === 'tr' ? 'Satın Al' : 'Buy Now')
+          }
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            // Always navigate to Home to avoid navigation stack issues
-            navigation.navigate('Home');
-          }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('purchaseTitle')}</Text>
+        <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
         <View style={styles.placeholder} />
       </View>
 
-      {/* Current Credits */}
-      <View style={styles.currentCreditsContainer}>
-        <View style={styles.currentCreditsBox}>
-          <Ionicons name="wallet" size={24} color="#1a1a1a" />
-          <View style={styles.currentCreditsInfo}>
-            <Text style={styles.currentCreditsNumber}>{currentCredits}</Text>
-            <Text style={styles.currentCreditsText}>{language === 'tr' ? 'Mevcut Kredi' : 'Current Credits'}</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.currentCredits}>
+          <Ionicons name="wallet" size={32} color="#6366f1" />
+          <View style={styles.creditsInfo}>
+            <Text style={styles.creditsLabel}>{t('currentCredits')}</Text>
+            <Text style={styles.creditsCount}>{currentCredits}</Text>
           </View>
         </View>
-      </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoHeader}>
-            <Ionicons name="information-circle" size={20} color="#6b7280" />
-            <Text style={styles.infoTitle}>{t('howItWorks')}</Text>
+        <View style={styles.howItWorksCard}>
+          <View style={styles.howItWorksHeader}>
+            <Ionicons name="information-circle" size={20} color="#6366f1" />
+            <Text style={styles.howItWorksTitle}>{t('howItWorks')}</Text>
           </View>
-          <Text style={styles.infoText}>
-            {t('howItWorksDescription')}
+          <Text style={styles.howItWorksText}>
+            {language === 'tr'
+              ? 'Her araç analizi 1 kredi kullanır. Krediniz bittiğinde yeni bir paket satın alabilirsiniz. Kredileriniz hiçbir zaman sona ermez ve hesabınızda kalıcı olarak saklanır.'
+              : 'Each vehicle analysis uses 1 credit. When your credits run out, you can purchase a new package. Your credits never expire and are permanently stored in your account.'
+            }
           </Text>
         </View>
 
-        {/* Packages */}
         <View style={styles.packagesSection}>
-          <Text style={styles.sectionTitle}>{t('creditPackages')}</Text>
-          {packages.map(renderPackage)}
-        </View>
+          <Text style={styles.sectionTitle}>{language === 'tr' ? 'Kredi Paketleri' : 'Credit Packages'}</Text>
+          <View style={styles.packagesContainer}>
+            {packages.map(renderPackage)}
+          </View>
 
-        {/* Restore Purchases */}
-        <TouchableOpacity
-          style={styles.restoreButton}
-          onPress={handleRestorePurchases}
-          disabled={loading}
-        >
-          <Ionicons name="refresh" size={20} color="#6b7280" />
-          <Text style={styles.restoreText}>{t('restorePurchases')}</Text>
-        </TouchableOpacity>
+          {/* Restore Purchases */}
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestorePurchases}
+            disabled={loading}
+          >
+            <Ionicons name="refresh" size={20} color="#6b7280" />
+            <Text style={styles.restoreText}>{t('restorePurchases')}</Text>
+          </TouchableOpacity>
 
-        {/* Footer Info */}
-        <View style={styles.footerInfo}>
-          <Text style={styles.footerText}>
-            • {t('infoPoint1')}{'\n'}
-            • {t('infoPoint2')}{'\n'}
-            • {t('infoPoint3')}{'\n'}
-            • {t('infoPoint4')}
-          </Text>
+          {/* Footer Info */}
+          <View style={styles.footerInfo}>
+            <Text style={styles.footerText}>
+              {language === 'tr'
+                ? '• Tüm satışlar kesindir\n• Krediler asla sona ermez\n• Güvenli ödeme Apple/Google üzerinden'
+                : '• All sales are final\n• Credits never expire\n• Secure payment via Apple/Google'
+              }
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -491,166 +484,182 @@ const PurchaseScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 20,
-    backgroundColor: 'white',
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#e5e7eb',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#1f2937',
+    textAlign: 'center',
+    flex: 1,
   },
   placeholder: {
     width: 40,
   },
-  currentCreditsContainer: {
+  content: {
+    flex: 1,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  currentCreditsBox: {
+  currentCredits: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    padding: 20,
+    borderRadius: 16,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  currentCreditsInfo: {
-    marginLeft: 12,
-  },
-  currentCreditsNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  currentCreditsText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  scrollView: {
+  creditsInfo: {
+    marginLeft: 16,
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 40, // ScrollView için ekstra bottom padding
+  creditsLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
   },
-  infoSection: {
-    margin: 20,
-    padding: 16,
-    backgroundColor: '#e0f2fe',
-    borderRadius: 12,
+  creditsCount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1e293b',
   },
-  infoHeader: {
+  howItWorksCard: {
+    backgroundColor: '#eff6ff',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  howItWorksHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  infoTitle: {
+  howItWorksTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#1e40af',
     marginLeft: 8,
   },
-  infoText: {
+  howItWorksText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#1e40af',
     lineHeight: 20,
   },
   packagesSection: {
-    paddingHorizontal: 20,
+    marginBottom: 40,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontWeight: '600',
+    color: '#1f2937',
     marginBottom: 16,
+    textAlign: 'center',
+  },
+  packagesContainer: {
+    gap: 16,
   },
   packageCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#f0f0f0',
+    borderColor: '#e5e7eb',
     position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    overflow: 'hidden',
   },
-  popularPackage: {
-    borderColor: '#4ade80',
-    transform: [{ scale: 1.02 }],
+  popularCard: {
+    borderColor: '#10b981',
+    backgroundColor: '#f0fdf4',
   },
-  selectedPackage: {
-    borderColor: '#1a1a1a',
+  selectedCard: {
+    borderColor: '#6366f1',
+    backgroundColor: '#faf5ff',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(99, 102, 241, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    borderRadius: 20,
   },
   popularBadge: {
     position: 'absolute',
-    top: -8,
-    left: 20,
-    backgroundColor: '#4ade80',
+    top: -1,
+    right: -1,
+    backgroundColor: '#10b981',
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 12,
   },
   popularText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   savingsBadge: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    top: 12,
+    left: 12,
     backgroundColor: '#ef4444',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   savingsText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   packageHeader: {
+    alignItems: 'center',
     marginBottom: 16,
   },
   packageTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
   },
   packageSubtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 2,
   },
   creditsSection: {
     alignItems: 'center',
     marginBottom: 16,
   },
   creditsNumber: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#6366f1',
+    lineHeight: 48,
   },
   creditsText: {
     fontSize: 14,
@@ -662,13 +671,14 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontWeight: '700',
+    color: '#1f2937',
   },
   priceOriginal: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 16,
+    color: '#9ca3af',
     textDecorationLine: 'line-through',
+    marginTop: 2,
   },
   pricePerCredit: {
     fontSize: 12,
@@ -685,58 +695,45 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#374151',
     marginLeft: 8,
+    flex: 1,
   },
-  purchaseButton: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
+  buyButton: {
+    backgroundColor: '#6366f1',
     paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  purchaseButtonText: {
-    color: 'white',
+  buyButtonText: {
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  loadingButton: {
-    backgroundColor: '#6b7280',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   restoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    marginHorizontal: 20,
     marginTop: 20,
   },
   restoreText: {
-    fontSize: 16,
     color: '#6b7280',
+    fontSize: 14,
     marginLeft: 8,
   },
   footerInfo: {
-    margin: 20,
+    marginTop: 20,
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f9fafb',
     borderRadius: 12,
   },
   footerText: {
     fontSize: 12,
     color: '#6b7280',
+    textAlign: 'center',
     lineHeight: 18,
   },
 });
 
-export default PurchaseScreen; 
+export default PurchaseScreen;
