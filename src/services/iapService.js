@@ -1,5 +1,5 @@
 import CreditService from './creditService';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
@@ -13,6 +13,7 @@ try {
 /**
  * In-App Purchase Service - Expo IAP ile entegrasyon
  * CONSUMABLE IAP sistemi - tekrar tekrar satın alınabilir krediler
+ * TESTFLIGHT OPTIMIZED: Enhanced for TestFlight environment
  */
 class IAPService {
   static isInitialized = false;
@@ -39,7 +40,7 @@ class IAPService {
   };
 
   /**
-   * IAP servisini başlatır
+   * TESTFLIGHT ENHANCED: IAP servisini başlatır
    */
   static async initialize() {
     try {
@@ -57,52 +58,105 @@ class IAPService {
       }
 
       if (__DEV__) {
-        console.log('🚀 Initializing CONSUMABLE IAP service...');
+        console.log('🚀 [TESTFLIGHT] Initializing CONSUMABLE IAP service...');
+        console.log('📱 Platform:', Platform.OS);
+        console.log('🔍 Environment:', __DEV__ ? 'Development' : 'Production');
       }
       
-      // IAP sistemini başlat
+      // IAP sistemini başlat - TestFlight için enhanced
       await InAppPurchases.connectAsync();
       
       if (__DEV__) {
-        console.log('✅ CONSUMABLE IAP service initialized successfully');
+        console.log('✅ [TESTFLIGHT] CONSUMABLE IAP service initialized successfully');
       }
       
       this.isInitialized = true;
       return true;
       
     } catch (error) {
-      console.error('❌ Failed to initialize IAP service:', error);
+      console.error('❌ [TESTFLIGHT] Failed to initialize IAP service:', error);
+      console.error('❌ [TESTFLIGHT] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code
+      });
       return false;
     }
   }
 
   /**
-   * IAP'ın kullanılabilir olup olmadığını kontrol eder
+   * TESTFLIGHT SPECIFIC: Enhanced IAP availability check
    */
   static async isAvailable() {
     try {
+      if (__DEV__) {
+        console.log('🔍 === [TESTFLIGHT] IAP AVAILABILITY CHECK START ===');
+        console.log('📱 Platform:', Platform.OS);
+        console.log('🏗️ Build type:', __DEV__ ? 'Development' : 'Production/TestFlight');
+      }
+
       // Mock mode'da her zaman available
       if (!InAppPurchases) {
+        if (__DEV__) {
+          console.log('📱 [TESTFLIGHT] Running in mock mode (no InAppPurchases module)');
+        }
         return true;
       }
 
       if (!this.isInitialized) {
-        await this.initialize();
+        if (__DEV__) {
+          console.log('🔧 [TESTFLIGHT] IAP not initialized, initializing now...');
+        }
+        const initResult = await this.initialize();
+        if (!initResult) {
+          console.error('❌ [TESTFLIGHT] Initialization failed!');
+          return false;
+        }
+      }
+
+      if (__DEV__) {
+        console.log('🔍 [TESTFLIGHT] Calling InAppPurchases.isAvailableAsync()...');
       }
 
       const available = await InAppPurchases.isAvailableAsync();
+      
       if (__DEV__) {
-        console.log('💳 IAP availability:', available);
+        console.log('💳 [TESTFLIGHT] InAppPurchases.isAvailableAsync() result:', available);
+        
+        if (!available) {
+          console.log('❌ [TESTFLIGHT] IAP NOT AVAILABLE - TestFlight specific reasons:');
+          console.log('   • TestFlight sandbox test user not signed in');
+          console.log('   • IAP disabled in Settings > Screen Time > Content & Privacy');
+          console.log('   • Network connectivity issues');
+          console.log('   • Bundle ID mismatch in App Store Connect');
+          console.log('   • Product IDs not created in App Store Connect');
+          console.log('   • Device region/currency restrictions');
+          
+          // TestFlight specific additional checks
+          console.log('🔧 [TESTFLIGHT] Additional debug info:');
+          console.log('   • Try signing out of App Store and signing in with test user');
+          console.log('   • Check Settings > App Store > Sandbox Account');
+          console.log('   • Ensure IAPs exist in App Store Connect with exact same Bundle ID');
+        }
+        
+        console.log('🔍 === [TESTFLIGHT] IAP AVAILABILITY CHECK END ===');
       }
+
       return available;
     } catch (error) {
-      console.error('❌ Error checking IAP availability:', error);
+      console.error('❌ [TESTFLIGHT] Error checking IAP availability:', error);
+      console.error('❌ [TESTFLIGHT] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       return false;
     }
   }
 
   /**
-   * Mevcut ürünleri yükler
+   * TESTFLIGHT ENHANCED: Product loading with detailed debugging
    */
   static async loadProducts() {
     try {
@@ -113,23 +167,60 @@ class IAPService {
       }
 
       if (__DEV__) {
-        console.log('📦 Loading CONSUMABLE IAP products...');
+        console.log('🔍 === [TESTFLIGHT] LOADING IAP PRODUCTS START ===');
+        console.log('📦 [TESTFLIGHT] Product IDs to load:', Object.values(this.PRODUCT_IDS));
       }
       
       const productIds = Object.values(this.PRODUCT_IDS);
-      const { results: products } = await InAppPurchases.getProductsAsync(productIds);
-      
-      this.products = products || [];
+      const result = await InAppPurchases.getProductsAsync(productIds);
       
       if (__DEV__) {
-        console.log(`📦 Loaded ${this.products.length} CONSUMABLE products:`, 
-          this.products.map(p => ({ id: p.productId, price: p.price }))
-        );
+        console.log('📦 [TESTFLIGHT] getProductsAsync() raw result:', result);
+      }
+      
+      const products = result?.results || [];
+      this.products = products;
+      
+      if (__DEV__) {
+        console.log(`📦 [TESTFLIGHT] Successfully loaded ${products.length} products:`);
+        products.forEach((product, index) => {
+          console.log(`   ${index + 1}. ${product.productId}: ${product.price || 'NO PRICE'}`);
+          console.log(`      Title: ${product.title || 'NO TITLE'}`);
+          console.log(`      Description: ${product.description || 'NO DESCRIPTION'}`);
+        });
+        
+        if (products.length === 0) {
+          console.log('❌ [TESTFLIGHT] NO PRODUCTS LOADED - TestFlight specific reasons:');
+          console.log('   • Product IDs not matching App Store Connect exactly');
+          console.log('   • Bundle ID mismatch between app and App Store Connect');
+          console.log('   • IAPs not created for this Bundle ID in App Store Connect');
+          console.log('   • Sandbox environment connection issues');
+          console.log('   • Test user account issues');
+          
+          // Individual product test
+          console.log('🔧 [TESTFLIGHT] Testing individual products...');
+          for (const productId of productIds) {
+            try {
+              const singleResult = await InAppPurchases.getProductsAsync([productId]);
+              const singleProducts = singleResult?.results || [];
+              console.log(`   • ${productId}: ${singleProducts.length > 0 ? '✅ FOUND' : '❌ NOT FOUND'}`);
+            } catch (err) {
+              console.log(`   • ${productId}: ❌ ERROR - ${err.message}`);
+            }
+          }
+        }
+        
+        console.log('🔍 === [TESTFLIGHT] LOADING IAP PRODUCTS END ===');
       }
       
       return this.products;
     } catch (error) {
-      console.error('❌ Failed to load products:', error);
+      console.error('❌ [TESTFLIGHT] Failed to load products:', error);
+      console.error('❌ [TESTFLIGHT] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code
+      });
       this.products = [];
       return [];
     }
@@ -150,9 +241,67 @@ class IAPService {
       
       return this.products;
     } catch (error) {
-      console.error('❌ Error getting products:', error);
+      console.error('❌ [TESTFLIGHT] Error getting products:', error);
       return [];
     }
+  }
+
+  /**
+   * TESTFLIGHT ENHANCED: Debug product availability specifically
+   */
+  static async debugProductAvailability() {
+    try {
+      if (__DEV__) {
+        console.log('🔍 === [TESTFLIGHT] PRODUCT AVAILABILITY DEBUG ===');
+        
+        const isAvail = await this.isAvailable();
+        console.log('1. [TESTFLIGHT] IAP Service Available:', isAvail);
+        
+        if (isAvail) {
+          const products = await this.loadProducts();
+          console.log('2. [TESTFLIGHT] Products loaded count:', products.length);
+          
+          if (products.length === 0) {
+            console.log('3. [TESTFLIGHT] Zero products - this is the main issue!');
+            console.log('4. [TESTFLIGHT] Likely causes:');
+            console.log('   • App Store Connect: IAPs not created for Bundle ID com.caridentify.app');
+            console.log('   • Bundle ID mismatch');
+            console.log('   • TestFlight sandbox issues');
+          }
+        } else {
+          console.log('2. [TESTFLIGHT] IAP Service not available - this is blocking everything!');
+        }
+        
+        console.log('🔍 === [TESTFLIGHT] PRODUCT DEBUG END ===');
+      }
+    } catch (error) {
+      console.error('❌ [TESTFLIGHT] Debug failed:', error);
+    }
+  }
+
+  /**
+   * TESTFLIGHT: Force fallback mode for testing
+   */
+  static async enableTestFlightFallback() {
+    if (__DEV__) {
+      console.log('🔧 [TESTFLIGHT] Enabling fallback mode for testing...');
+    }
+    
+    // Override isAvailable to return true
+    this.isAvailable = async () => {
+      console.log('🔧 [TESTFLIGHT] FALLBACK MODE: Forcing IAP available = true');
+      return true;
+    };
+    
+    // Override getProducts to return mock data
+    this.getProducts = async () => {
+      console.log('🔧 [TESTFLIGHT] FALLBACK MODE: Returning mock products');
+      return [
+        { productId: 'com.caridentify.credits.pack10', price: '₺99,99', title: '10 Credits', description: 'Test product' },
+        { productId: 'com.caridentify.credits.pack50', price: '₺289,99', title: '50 Credits', description: 'Test product' },
+        { productId: 'com.caridentify.credits.pack200', price: '₺829,99', title: '200 Credits', description: 'Test product' }
+      ];
+    };
   }
 
   /**
@@ -170,14 +319,14 @@ class IAPService {
       }
 
       if (__DEV__) {
-        console.log('💳 Initiating CONSUMABLE purchase for:', productId);
+        console.log('💳 [TESTFLIGHT] Initiating CONSUMABLE purchase for:', productId);
       }
       
       // Purchase işlemini başlat
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
       if (__DEV__) {
-        console.log('💳 CONSUMABLE Purchase result:', result);
+        console.log('💳 [TESTFLIGHT] CONSUMABLE Purchase result:', result);
       }
       
       // Purchase başarılıysa kredileri ekle
@@ -192,7 +341,7 @@ class IAPService {
           await InAppPurchases.finishTransactionAsync(purchase, true);
           
           if (__DEV__) {
-            console.log('✅ CONSUMABLE purchase completed and consumed');
+            console.log('✅ [TESTFLIGHT] CONSUMABLE purchase completed and consumed');
           }
         }
       }
@@ -200,7 +349,7 @@ class IAPService {
       return { productId, status: 'completed', result };
       
     } catch (error) {
-      console.error('❌ CONSUMABLE Purchase failed:', error);
+      console.error('❌ [TESTFLIGHT] CONSUMABLE Purchase failed:', error);
       
       if (InAppPurchases && error.code === InAppPurchases.IAPErrorCode.PAYMENT_CANCELLED) {
         throw new Error('Satın alma iptal edildi');
@@ -217,7 +366,7 @@ class IAPService {
    */
   static async mockPurchase(productId) {
     if (__DEV__) {
-      console.log('🧪 Mock CONSUMABLE purchase for:', productId);
+      console.log('🧪 [TESTFLIGHT] Mock CONSUMABLE purchase for:', productId);
     }
     
     // 2 saniye bekle (simulate purchase flow)
@@ -228,7 +377,7 @@ class IAPService {
     if (packageInfo) {
       await CreditService.addCredits(packageInfo.credits);
       if (__DEV__) {
-        console.log(`✅ Mock CONSUMABLE purchase successful: +${packageInfo.credits} credits`);
+        console.log(`✅ [TESTFLIGHT] Mock CONSUMABLE purchase successful: +${packageInfo.credits} credits`);
       }
     }
     
@@ -241,12 +390,12 @@ class IAPService {
   static async handleSuccessfulPurchase(purchase) {
     try {
       if (__DEV__) {
-        console.log('🎉 Processing successful CONSUMABLE purchase:', purchase.productId);
+        console.log('🎉 [TESTFLIGHT] Processing successful CONSUMABLE purchase:', purchase.productId);
       }
 
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
       if (!packageInfo) {
-        console.error('❌ Unknown product ID:', purchase.productId);
+        console.error('❌ [TESTFLIGHT] Unknown product ID:', purchase.productId);
         return;
       }
 
@@ -254,17 +403,16 @@ class IAPService {
       await CreditService.addCredits(packageInfo.credits);
       
       if (__DEV__) {
-        console.log(`✅ Added ${packageInfo.credits} credits for CONSUMABLE ${purchase.productId}`);
+        console.log(`✅ [TESTFLIGHT] Added ${packageInfo.credits} credits for CONSUMABLE ${purchase.productId}`);
       }
 
     } catch (error) {
-      console.error('❌ Error handling successful CONSUMABLE purchase:', error);
+      console.error('❌ [TESTFLIGHT] Error handling successful CONSUMABLE purchase:', error);
     }
   }
 
   /**
    * CONSUMABLE IAP'lar restore edilmez!
-   * Bu fonksiyon artık kullanılmıyor - consumable ürünler restore edilemez
    */
   static async restorePurchases() {
     Alert.alert(
@@ -282,7 +430,7 @@ class IAPService {
       if (InAppPurchases && this.isInitialized) {
         await InAppPurchases.disconnectAsync();
         if (__DEV__) {
-          console.log('🔌 CONSUMABLE IAP service disconnected');
+          console.log('🔌 [TESTFLIGHT] CONSUMABLE IAP service disconnected');
         }
       }
       
@@ -291,7 +439,7 @@ class IAPService {
       this.purchaseListener = null;
       
     } catch (error) {
-      console.error('❌ Error disconnecting IAP service:', error);
+      console.error('❌ [TESTFLIGHT] Error disconnecting IAP service:', error);
     }
   }
 }
