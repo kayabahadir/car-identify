@@ -2,7 +2,7 @@
   "expo": {
     "name": "Car Identify",
     "slug": "car-identify",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "sdkVersion": "54.0.0",
     "platforms": [
@@ -10,11 +10,8 @@
       "android",
       "web"
     ],
-    "userInterfaceStyle": "light",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -23,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
-      "buildNumber": "14",
+      "buildNumber": "16",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera to capture car images for identification.",
         "NSPhotoLibraryUsageDescription": "This app accesses photo library to select car images for identification.",
@@ -32,32 +29,43 @@
     },
     "android": {
       "package": "com.caridentify.app",
-      "versionCode": 3,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "permissions": [
         "android.permission.CAMERA",
-        "com.android.vending.BILLING"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "The app accesses your photos to let you select car images for identification."
-        }
-      ]
+    "assetBundlePatterns": [
+      "**/*"
     ],
     "extra": {
       "eas": {
-        "projectId": "6088d043-05b9-4843-b2cd-c66350e9a7a7"
+        "projectId": "22c4c8d6-2b75-492b-8d89-1e0a1b5c8e92"
       }
     },
-    "owner": "car-identify-team"
+    "owner": "car-identify-team",
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app needs access to photo library to select car images for identification."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app uses camera to capture car images for identification."
+        }
+      ]
+    ]
   }
 }

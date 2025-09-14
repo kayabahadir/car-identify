@@ -61,10 +61,10 @@ const PurchaseScreen = ({ navigation }) => {
     }
   };
 
-  // Base package bilgileri (fiyatlar IAP'den gelecek)
+  // Base package bilgileri - YENİ CONSUMABLE IAP ID'leri
   const basePackages = React.useMemo(() => [
     {
-      id: 'com.caridentify.credits10.permanent',
+      id: 'com.caridentify.credits.pack10',
       credits: 10,
       title: language === 'tr' ? 'Başlangıç' : 'Starter',
       subtitle: language === 'tr' ? 'Küçük projeler için' : 'For small projects',
@@ -72,7 +72,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 0
     },
     {
-      id: 'com.caridentify.credits50.permanent',
+      id: 'com.caridentify.credits.pack50',
       credits: 50,
       title: language === 'tr' ? 'Popüler' : 'Popular',
       subtitle: language === 'tr' ? 'En çok tercih edilen' : 'Most preferred',
@@ -80,7 +80,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 30
     },
     {
-      id: 'com.caridentify.credits200.permanent',
+      id: 'com.caridentify.credits.pack200',
       credits: 200,
       title: language === 'tr' ? 'Premium' : 'Premium',
       subtitle: language === 'tr' ? 'Büyük projeler için' : 'For large projects',
@@ -163,7 +163,7 @@ const PurchaseScreen = ({ navigation }) => {
   const loadIAPProducts = async () => {
     try {
       if (__DEV__) {
-        console.log('📦 Loading IAP products...');
+        console.log('📦 Loading CONSUMABLE IAP products...');
       }
 
       const available = await IAPService.isAvailable();
@@ -173,7 +173,7 @@ const PurchaseScreen = ({ navigation }) => {
         const products = await IAPService.getProducts();
         
         if (__DEV__) {
-          console.log('📦 Loaded IAP products:', products);
+          console.log('📦 Loaded CONSUMABLE IAP products:', products);
           console.log('🔍 Products count:', products?.length || 0);
         }
 
@@ -181,65 +181,66 @@ const PurchaseScreen = ({ navigation }) => {
           setIapProducts(products);
           if (__DEV__) {
             products.forEach(product => {
-              console.log(`💰 ${product.productId}: ${product.price || 'No price'}`);
+              console.log(`💰 CONSUMABLE ${product.productId}: ${product.price || 'No price'}`);
             });
           }
         } else {
           // Products yüklenemedi, fallback kullan
           if (__DEV__) {
-            console.log('⚠️ No products loaded from IAP, using fallback');
+            console.log('⚠️ No CONSUMABLE products loaded from IAP, using fallback');
           }
           setFallbackProducts();
         }
       } else {
         // Demo mode - fallback fiyatları
         if (__DEV__) {
-          console.log('🔧 IAP not available, using fallback prices for demo mode');
+          console.log('🔧 IAP not available, using fallback prices for CONSUMABLE demo mode');
         }
         setFallbackProducts();
       }
     } catch (error) {
-      console.error('❌ Error loading IAP products:', error);
+      console.error('❌ Error loading CONSUMABLE IAP products:', error);
       setFallbackProducts();
     }
   };
 
   const setFallbackProducts = () => {
+    // Apple Store fiyatları (App Store Connect'ten güncel)
     const fallbackProducts = [
-      { productId: 'com.caridentify.credits10.permanent', price: '$1.99' },
-      { productId: 'com.caridentify.credits50.permanent', price: '$6.99' },
-      { productId: 'com.caridentify.credits200.permanent', price: '$19.99' }
+      { productId: 'com.caridentify.credits.pack10', price: '₺99,99' },
+      { productId: 'com.caridentify.credits.pack50', price: '₺289,99' },
+      { productId: 'com.caridentify.credits.pack200', price: '₺829,99' }
     ];
     setIapProducts(fallbackProducts);
     if (__DEV__) {
-      console.log('🔧 Using fallback products:', fallbackProducts);
+      console.log('🔧 Using fallback CONSUMABLE products:', fallbackProducts);
     }
   };
 
   const handlePurchase = async (packageInfo) => {
-    console.log('🛒 Starting purchase for:', packageInfo);
+    console.log('🛒 Starting CONSUMABLE purchase for:', packageInfo);
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
-      console.log('🔍 Checking IAP availability...');
+      console.log('🔍 Checking CONSUMABLE IAP availability...');
       const iapAvailable = await IAPService.isAvailable();
-      console.log('🔍 IAP available:', iapAvailable);
+      console.log('🔍 CONSUMABLE IAP available:', iapAvailable);
       
       if (iapAvailable) {
         try {
-          console.log('💳 Starting purchase process...');
+          console.log('💳 Starting CONSUMABLE purchase process...');
           
           // Safer approach - check if IAP module exists
           if (!InAppPurchases) {
-            console.log('🔧 Using mock purchase (no IAP module)');
+            console.log('🔧 Using mock CONSUMABLE purchase (no IAP module)');
             // Mock purchase for demo
             await new Promise(resolve => setTimeout(resolve, 2000));
             await FirstTimeService.markFreeAnalysisUsed();
             
             Alert.alert(
               `🎉 Demo Purchase Success`,
-              `Mock purchase completed for ${packageInfo.credits} credits.`,
+              `Mock CONSUMABLE purchase completed for ${packageInfo.credits} credits.`,
               [{ 
                 text: 'OK', 
                 onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
@@ -249,14 +250,14 @@ const PurchaseScreen = ({ navigation }) => {
           }
           
           // Real IAP purchase
-          console.log('💳 Calling IAPService.purchaseProduct...');
-          await IAPService.purchaseProduct(packageInfo.id);
-          console.log('✅ Purchase completed successfully');
+          console.log('💳 Calling IAPService.purchaseProduct for CONSUMABLE...');
+          const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
+          console.log('✅ CONSUMABLE Purchase completed successfully:', purchaseResult);
           
           // Mark free analysis as used
           await FirstTimeService.markFreeAnalysisUsed();
           
-          // Success mesajını göster
+          // CONSUMABLE purchase - her zaman yeni satın alma
           Alert.alert(
             `🎉 ${t('purchaseSuccess')}`,
             `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
@@ -270,30 +271,27 @@ const PurchaseScreen = ({ navigation }) => {
           );
           
         } catch (purchaseError) {
-          console.error('❌ Purchase error details:', purchaseError);
+          console.error('❌ CONSUMABLE Purchase error details:', purchaseError);
           
           // Satın alma hatası (user cancel, payment fail vs.)
           if (purchaseError.message?.includes('iptal') || 
               purchaseError.message?.includes('cancel') ||
               purchaseError.message?.includes('cancelled')) {
-            console.log('ℹ️ User cancelled purchase');
+            console.log('ℹ️ User cancelled CONSUMABLE purchase');
             return;
           }
           throw purchaseError; // Diğer hatalar için dışarıya fırlat
         }
       } else {
-        console.log('⚠️ IAP not available');
+        console.log('⚠️ CONSUMABLE IAP not available');
         Alert.alert(
           t('unavailable') || 'Kullanılamıyor',
           t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
         );
       }
 
-      // Kredi sayısını güncelle
-      setTimeout(loadCurrentCredits, 1000);
-
     } catch (error) {
-      console.error('❌ Critical purchase error:', error);
+      console.error('❌ Critical CONSUMABLE purchase error:', error);
       console.error('❌ Error stack:', error.stack);
       
       Alert.alert(
@@ -304,39 +302,12 @@ const PurchaseScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
       setSelectedPackage(null);
-    }
-  };
-
-  const handleRestorePurchases = async () => {
-    setLoading(true);
-    try {
-      const iapAvailable = await IAPService.isAvailable();
       
-      if (iapAvailable) {
-        // Gerçek IAP restore
-        await IAPService.restorePurchases();
-      } else {
-        // Demo mode
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        Alert.alert(
-          'Demo Mode',
-          'Bu demo modudur. Gerçek satın alma geri yüklemesi App Store/Google Play üzerinden yapılır.',
-          [{ text: 'Tamam' }]
-        );
-      }
-      
-      // Kredi sayısını güncelle
-      setTimeout(loadCurrentCredits, 1000);
-      
-    } catch (error) {
-      Alert.alert(
-        'Geri Yükleme Hatası',
-        error.message || 'Satın almalar geri yüklenemedi.',
-        [{ text: 'Tamam' }]
-      );
-    } finally {
-      setLoading(false);
+      // Kredi sayısını güncelle (biraz gecikme ile)  
+      setTimeout(async () => {
+        await loadCurrentCredits();
+        console.log('🔄 Credits refreshed after CONSUMABLE purchase');
+      }, 2000);
     }
   };
 
@@ -405,6 +376,12 @@ const PurchaseScreen = ({ navigation }) => {
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
           <Text style={styles.featureText}>{t('pastAnalysisRecords')}</Text>
         </View>
+        <View style={styles.featureRow}>
+          <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+          <Text style={styles.featureText}>
+            {language === 'tr' ? 'Tekrar satın alınabilir' : 'Can be purchased again'}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.buyButton}>
@@ -444,8 +421,8 @@ const PurchaseScreen = ({ navigation }) => {
           </View>
           <Text style={styles.howItWorksText}>
             {language === 'tr'
-              ? 'Her araç analizi 1 kredi kullanır. Krediniz bittiğinde yeni bir paket satın alabilirsiniz. Kredileriniz hiçbir zaman sona ermez ve hesabınızda kalıcı olarak saklanır.'
-              : 'Each vehicle analysis uses 1 credit. When your credits run out, you can purchase a new package. Your credits never expire and are permanently stored in your account.'
+              ? 'Her araç analizi 1 kredi kullanır. Krediniz bittiğinde aynı paketi tekrar satın alabilirsiniz. Kredileriniz hiçbir zaman sona ermez ve hesabınızda kalıcı olarak saklanır.'
+              : 'Each vehicle analysis uses 1 credit. When your credits run out, you can purchase the same package again. Your credits never expire and are permanently stored in your account.'
             }
           </Text>
         </View>
@@ -456,22 +433,14 @@ const PurchaseScreen = ({ navigation }) => {
             {packages.map(renderPackage)}
           </View>
 
-          {/* Restore Purchases */}
-          <TouchableOpacity
-            style={styles.restoreButton}
-            onPress={handleRestorePurchases}
-            disabled={loading}
-          >
-            <Ionicons name="refresh" size={20} color="#6b7280" />
-            <Text style={styles.restoreText}>{t('restorePurchases')}</Text>
-          </TouchableOpacity>
-
+          {/* CONSUMABLE ürünlerde restore butonu yok */}
+          
           {/* Footer Info */}
           <View style={styles.footerInfo}>
             <Text style={styles.footerText}>
               {language === 'tr'
-                ? '• Tüm satışlar kesindir\n• Krediler asla sona ermez\n• Güvenli ödeme Apple/Google üzerinden'
-                : '• All sales are final\n• Credits never expire\n• Secure payment via Apple/Google'
+                ? '• Tüm satışlar kesindir\n• Krediler asla sona ermez\n• Aynı paketi tekrar satın alabilirsiniz\n• Güvenli ödeme Apple/Google üzerinden'
+                : '• All sales are final\n• Credits never expire\n• You can purchase the same package again\n• Secure payment via Apple/Google'
               }
             </Text>
           </View>
@@ -709,18 +678,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    marginTop: 20,
-  },
-  restoreText: {
-    color: '#6b7280',
-    fontSize: 14,
-    marginLeft: 8,
   },
   footerInfo: {
     marginTop: 20,

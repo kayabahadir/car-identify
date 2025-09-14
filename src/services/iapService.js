@@ -1,5 +1,5 @@
-import { Alert, Platform } from 'react-native';
 import CreditService from './creditService';
+import { Alert } from 'react-native';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
@@ -12,31 +12,30 @@ try {
 
 /**
  * In-App Purchase Service - Expo IAP ile entegrasyon
+ * CONSUMABLE IAP sistemi - tekrar tekrar satın alınabilir krediler
  */
 class IAPService {
   static isInitialized = false;
   static products = [];
   static purchaseListener = null;
-  static purchasePromiseResolvers = new Map(); // Purchase promise tracking
-  static activePurchaseMonitors = new Map(); // Active purchase monitoring
 
   // Receipt validation endpoint
   static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
     ? `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/validate-receipt`
     : null;
 
-  // Ürün ID'leri - YENİ Non-Consumable ürünler
+  // IAP ürün ID'leri - YENİ CONSUMABLE products (tekrar satın alınabilir)
   static PRODUCT_IDS = {
-    CREDITS_10: 'com.caridentify.credits10.permanent',
-    CREDITS_50: 'com.caridentify.credits50.permanent', 
-    CREDITS_200: 'com.caridentify.credits200.permanent'
+    CREDITS_10: 'com.caridentify.credits.pack10',
+    CREDITS_50: 'com.caridentify.credits.pack50', 
+    CREDITS_200: 'com.caridentify.credits.pack200'
   };
 
   // Kredi paketleri mapping
   static CREDIT_PACKAGES = {
-    [this.PRODUCT_IDS.CREDITS_10]: { credits: 10, packageInfo: 'Başlangıç Paketi' },
-    [this.PRODUCT_IDS.CREDITS_50]: { credits: 50, packageInfo: 'Popüler Paket' },
-    [this.PRODUCT_IDS.CREDITS_200]: { credits: 200, packageInfo: 'Premium Paket' }
+    'com.caridentify.credits.pack10': { credits: 10, price: 1.99 },
+    'com.caridentify.credits.pack50': { credits: 50, price: 6.99 },
+    'com.caridentify.credits.pack200': { credits: 200, price: 19.99 }
   };
 
   /**
@@ -57,36 +56,49 @@ class IAPService {
         return true;
       }
 
+      if (__DEV__) {
+        console.log('🚀 Initializing CONSUMABLE IAP service...');
+      }
+      
+      // IAP sistemini başlat
       await InAppPurchases.connectAsync();
-      this.setPurchaseListener();
-      await this.loadProducts();
+      
+      if (__DEV__) {
+        console.log('✅ CONSUMABLE IAP service initialized successfully');
+      }
       
       this.isInitialized = true;
       return true;
+      
     } catch (error) {
-      console.error('❌ Failed to initialize In-App Purchases:', error);
-      this.isInitialized = false;
+      console.error('❌ Failed to initialize IAP service:', error);
       return false;
     }
   }
 
   /**
-   * Purchase listener'ını ayarlar
+   * IAP'ın kullanılabilir olup olmadığını kontrol eder
    */
-  static setPurchaseListener() {
-    if (!InAppPurchases) return;
-    
-    this.purchaseListener = InAppPurchases.setPurchaseListener(({ responseCode, results, errorCode }) => {
+  static async isAvailable() {
+    try {
+      // Mock mode'da her zaman available
+      if (!InAppPurchases) {
+        return true;
+      }
+
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      const available = await InAppPurchases.isAvailableAsync();
       if (__DEV__) {
-        console.log('💳 Purchase listener triggered:', { responseCode, results, errorCode });
+        console.log('💳 IAP availability:', available);
       }
-      
-      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
-        results?.forEach(purchase => {
-          this.handleSuccessfulPurchase(purchase);
-        });
-      }
-    });
+      return available;
+    } catch (error) {
+      console.error('❌ Error checking IAP availability:', error);
+      return false;
+    }
   }
 
   /**
@@ -101,7 +113,7 @@ class IAPService {
       }
 
       if (__DEV__) {
-        console.log('📦 Loading IAP products...');
+        console.log('📦 Loading CONSUMABLE IAP products...');
       }
       
       const productIds = Object.values(this.PRODUCT_IDS);
@@ -110,7 +122,7 @@ class IAPService {
       this.products = products || [];
       
       if (__DEV__) {
-        console.log(`📦 Loaded ${this.products.length} products:`, 
+        console.log(`📦 Loaded ${this.products.length} CONSUMABLE products:`, 
           this.products.map(p => ({ id: p.productId, price: p.price }))
         );
       }
@@ -124,7 +136,27 @@ class IAPService {
   }
 
   /**
-   * Belirli bir ürünü satın alır
+   * Ürün listesini getirir (PurchaseScreen için)
+   */
+  static async getProducts() {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      
+      if (this.products.length === 0) {
+        await this.loadProducts();
+      }
+      
+      return this.products;
+    } catch (error) {
+      console.error('❌ Error getting products:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Belirli bir ürünü satın alır - CONSUMABLE için optimized
    */
   static async purchaseProduct(productId) {
     try {
@@ -138,20 +170,37 @@ class IAPService {
       }
 
       if (__DEV__) {
-        console.log('💳 Initiating purchase for:', productId);
+        console.log('💳 Initiating CONSUMABLE purchase for:', productId);
       }
       
-      // Basit purchase approach
-      await InAppPurchases.purchaseItemAsync(productId);
+      // Purchase işlemini başlat
+      const result = await InAppPurchases.purchaseItemAsync(productId);
       
       if (__DEV__) {
-        console.log('✅ Purchase request completed');
+        console.log('💳 CONSUMABLE Purchase result:', result);
       }
       
-      return { productId, status: 'completed' };
+      // Purchase başarılıysa kredileri ekle
+      if (result && result.results && result.results.length > 0) {
+        const purchase = result.results[0];
+        
+        // CONSUMABLE IAP için her zaman kredileri ekle
+        await this.handleSuccessfulPurchase(purchase);
+        
+        // Purchase'ı consume et (consumable için gerekli)
+        if (purchase.transactionId || purchase.purchaseToken) {
+          await InAppPurchases.finishTransactionAsync(purchase, true);
+          
+          if (__DEV__) {
+            console.log('✅ CONSUMABLE purchase completed and consumed');
+          }
+        }
+      }
+      
+      return { productId, status: 'completed', result };
       
     } catch (error) {
-      console.error('❌ Purchase failed:', error);
+      console.error('❌ CONSUMABLE Purchase failed:', error);
       
       if (InAppPurchases && error.code === InAppPurchases.IAPErrorCode.PAYMENT_CANCELLED) {
         throw new Error('Satın alma iptal edildi');
@@ -168,7 +217,7 @@ class IAPService {
    */
   static async mockPurchase(productId) {
     if (__DEV__) {
-      console.log('🧪 Mock purchase for:', productId);
+      console.log('🧪 Mock CONSUMABLE purchase for:', productId);
     }
     
     // 2 saniye bekle (simulate purchase flow)
@@ -179,7 +228,7 @@ class IAPService {
     if (packageInfo) {
       await CreditService.addCredits(packageInfo.credits);
       if (__DEV__) {
-        console.log(`✅ Mock purchase successful: +${packageInfo.credits} credits`);
+        console.log(`✅ Mock CONSUMABLE purchase successful: +${packageInfo.credits} credits`);
       }
     }
     
@@ -192,7 +241,7 @@ class IAPService {
   static async handleSuccessfulPurchase(purchase) {
     try {
       if (__DEV__) {
-        console.log('🎉 Processing successful purchase:', purchase.productId);
+        console.log('🎉 Processing successful CONSUMABLE purchase:', purchase.productId);
       }
 
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
@@ -205,100 +254,44 @@ class IAPService {
       await CreditService.addCredits(packageInfo.credits);
       
       if (__DEV__) {
-        console.log(`✅ Added ${packageInfo.credits} credits for ${purchase.productId}`);
-      }
-
-      // Purchase'ı acknowledge et (eğer gerekirse)
-      if (InAppPurchases && !purchase.acknowledged) {
-        await InAppPurchases.finishTransactionAsync(purchase, false);
+        console.log(`✅ Added ${packageInfo.credits} credits for CONSUMABLE ${purchase.productId}`);
       }
 
     } catch (error) {
-      console.error('❌ Error handling successful purchase:', error);
+      console.error('❌ Error handling successful CONSUMABLE purchase:', error);
     }
   }
 
   /**
-   * Satın almaları geri yükler
+   * CONSUMABLE IAP'lar restore edilmez!
+   * Bu fonksiyon artık kullanılmıyor - consumable ürünler restore edilemez
    */
   static async restorePurchases() {
+    Alert.alert(
+      'Kredi Geri Yükleme',
+      'Kredi paketleri tüketilebilir ürünlerdir ve otomatik olarak geri yüklenmez. Krediniz bittiyse yeni kredi paketi satın alabilirsiniz.',
+      [{ text: 'Anladım' }]
+    );
+  }
+
+  /**
+   * IAP bağlantısını keser
+   */
+  static async disconnect() {
     try {
-      if (!this.isInitialized) {
-        await this.initialize();
-      }
-
-      // Mock mode'da restore yapmayacağız
-      if (!InAppPurchases) {
-        Alert.alert(
-          'Demo Mode',
-          'Bu demo modudur. Gerçek satın alma geri yüklemesi development build gerektirir.',
-          [{ text: 'Tamam' }]
-        );
-        return;
-      }
-
-      if (__DEV__) {
-        console.log('🔄 Restoring purchases...');
-      }
-      
-      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-      
-      if (results && results.length > 0) {
+      if (InAppPurchases && this.isInitialized) {
+        await InAppPurchases.disconnectAsync();
         if (__DEV__) {
-          console.log(`🔄 Found ${results.length} previous purchases`);
+          console.log('🔌 CONSUMABLE IAP service disconnected');
         }
-        
-        // Önceki satın almaları işle
-        for (const purchase of results) {
-          if (purchase.acknowledged === false) {
-            await this.handleSuccessfulPurchase(purchase);
-          }
-        }
-        
-        Alert.alert(
-          '✅ Geri Yükleme Başarılı',
-          `${results.length} önceki satın alma geri yüklendi.`,
-          [{ text: 'Tamam' }]
-        );
-      } else {
-        Alert.alert(
-          'ℹ️ Geri Yüklenecek Satın Alma Yok',
-          'Bu hesapta daha önce yapılmış satın alma bulunamadı.',
-          [{ text: 'Tamam' }]
-        );
       }
       
+      this.isInitialized = false;
+      this.products = [];
+      this.purchaseListener = null;
+      
     } catch (error) {
-      console.error('❌ Restore failed:', error);
-      throw new Error(error.message || 'Satın almalar geri yüklenemedi');
-    }
-  }
-
-  /**
-   * Mevcut ürünleri getirir
-   */
-  static getProducts() {
-    return this.products;
-  }
-
-  /**
-   * IAP'ın kullanılabilir olup olmadığını kontrol eder
-   */
-  static async isAvailable() {
-    try {
-      // Mock mode'da da available dön (test için)
-      if (!InAppPurchases) {
-        return true;
-      }
-
-      if (!this.isInitialized) {
-        const initialized = await this.initialize();
-        return initialized;
-      }
-      return this.isInitialized;
-    } catch (error) {
-      console.error('❌ IAP availability check failed:', error);
-      return false;
+      console.error('❌ Error disconnecting IAP service:', error);
     }
   }
 }
