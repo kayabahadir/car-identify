@@ -29,10 +29,8 @@ const PurchaseScreen = ({ navigation }) => {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [currentCredits, setCurrentCredits] = useState(0);
   const [iapProducts, setIapProducts] = useState([]); // Gerçek IAP ürünleri
-  const [debugInfo, setDebugInfo] = useState(''); // Windows için debug info
-  const [showDebug, setShowDebug] = useState(false);
 
-  // DÜZELTME: Türkçe virgül notation için gelişmiş price parsing
+  // Türkçe virgül notation için gelişmiş price parsing
   const parsePrice = (priceString) => {
     if (!priceString) return 0;
     
@@ -60,10 +58,6 @@ const PurchaseScreen = ({ navigation }) => {
     return parseFloat(cleanPrice) || 0;
   };
 
-  const addDebugInfo = (info) => {
-    setDebugInfo(prev => prev + '\n' + new Date().toLocaleTimeString() + ': ' + info);
-  };
-
   // İndirimli fiyat gösterimi için original fiyatları hesapla
   const getOriginalPrice = (currentPrice, savingsPercent) => {
     try {
@@ -89,12 +83,12 @@ const PurchaseScreen = ({ navigation }) => {
       
       return `${currencySymbol}${originalPrice.toFixed(2)}`;
     } catch (error) {
-      addDebugInfo('❌ Error in getOriginalPrice: ' + error.message);
+      console.error('Error in getOriginalPrice:', error);
       return currentPrice;
     }
   };
 
-  // Base package bilgileri - YENİ CONSUMABLE IAP ID'leri
+  // Base package bilgileri - CONSUMABLE IAP ID'leri
   const basePackages = React.useMemo(() => [
     {
       id: 'com.caridentify.credits.pack10',
@@ -138,19 +132,19 @@ const PurchaseScreen = ({ navigation }) => {
               pricePerCredit = (numericPrice / basePackage.credits).toFixed(3);
             }
           } catch (error) {
-            addDebugInfo('❌ Error calculating price per credit: ' + error.message);
+            console.error('Error calculating price per credit:', error);
           }
         }
         
         return {
           ...basePackage,
-          price: currentPrice, // Gerçek satış fiyatı
-          priceOriginal: originalPrice, // İndirimli gösterim için orijinal fiyat
+          price: currentPrice,
+          priceOriginal: originalPrice,
           priceLocal: currentPrice,
           pricePerCredit: pricePerCredit
         };
       } catch (error) {
-        addDebugInfo('❌ Error processing package ' + basePackage.id + ': ' + error.message);
+        console.error('Error processing package:', basePackage.id, error);
         return {
           ...basePackage,
           price: 'Error',
@@ -163,12 +157,10 @@ const PurchaseScreen = ({ navigation }) => {
   }, [basePackages, iapProducts, language, getOriginalPrice]);
 
   useEffect(() => {
-    addDebugInfo('🚀 PurchaseScreen başlatılıyor...');
     loadCurrentCredits();
     initializeIAP();
-    loadIAPProducts(); // Gerçek ürün fiyatlarını yükle
+    loadIAPProducts();
     
-    // Custom back button handler
     navigation.setOptions({
       headerShown: false,
     });
@@ -176,21 +168,12 @@ const PurchaseScreen = ({ navigation }) => {
 
   const initializeIAP = async () => {
     try {
-      addDebugInfo('🔍 IAP initialization başlıyor...');
-
       const available = await IAPService.isAvailable();
-      addDebugInfo('🔍 IAP Service availability: ' + available);
-      
       if (!available) {
-        addDebugInfo('⚠️ IAP not available - sebepleri:');
-        addDebugInfo('• Device IAP desteklemiyor');
-        addDebugInfo('• Network bağlantı sorunu');
-        addDebugInfo('• IAP settings\'te kapalı');
-        addDebugInfo('• Product ID\'ler App Store Connect\'te yok');
-        addDebugInfo('• TestFlight sandbox test user sorunu');
+        console.log('IAP not available');
       }
     } catch (error) {
-      addDebugInfo('❌ IAP initialization error: ' + error.message);
+      console.error('Error initializing IAP:', error);
     }
   };
 
@@ -198,42 +181,29 @@ const PurchaseScreen = ({ navigation }) => {
     try {
       const credits = await CreditService.getCredits();
       setCurrentCredits(credits);
-      addDebugInfo('✅ Mevcut kredi: ' + credits);
     } catch (error) {
-      addDebugInfo('❌ Kredi yükleme hatası: ' + error.message);
+      console.error('Error loading credits:', error);
     }
   };
 
   const loadIAPProducts = async () => {
     try {
-      addDebugInfo('📦 IAP products yükleniyor...');
-
       const available = await IAPService.isAvailable();
-      addDebugInfo('🔍 IAP available for products: ' + available);
 
       if (available) {
         await IAPService.initialize();
         const products = await IAPService.getProducts();
-        
-        addDebugInfo('📦 Yüklenen product sayısı: ' + (products?.length || 0));
 
         if (products && products.length > 0) {
           setIapProducts(products);
-          addDebugInfo('✅ Products başarıyla yüklendi');
-          products.forEach((product, index) => {
-            addDebugInfo(`  ${index + 1}. ${product.productId}: ${product.price || 'NO PRICE'}`);
-          });
         } else {
-          addDebugInfo('⚠️ Hiç product yüklenmedi - fallback kullanılıyor');
-          addDebugInfo('Sebep: Product ID\'ler App Store Connect\'te yok olabilir');
           setFallbackProducts();
         }
       } else {
-        addDebugInfo('🔧 IAP available değil - fallback mode');
         setFallbackProducts();
       }
     } catch (error) {
-      addDebugInfo('❌ IAP products yükleme hatası: ' + error.message);
+      console.error('Error loading IAP products:', error);
       setFallbackProducts();
     }
   };
@@ -245,46 +215,40 @@ const PurchaseScreen = ({ navigation }) => {
       { productId: 'com.caridentify.credits.pack200', price: '₺829,99' }
     ];
     setIapProducts(fallbackProducts);
-    addDebugInfo('🔧 Fallback products kullanılıyor');
   };
 
   const handlePurchase = async (packageInfo) => {
-    addDebugInfo('🛒 Satın alma başlıyor: ' + packageInfo.id);
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
       const iapAvailable = await IAPService.isAvailable();
-      addDebugInfo('💳 Purchase IAP available: ' + iapAvailable);
       
       if (iapAvailable) {
         try {
           if (!InAppPurchases) {
-            addDebugInfo('🔧 Mock purchase (no IAP module)');
+            // Mock purchase for development/testing
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            const packageInfo_credits = IAPService.CREDIT_PACKAGES[packageInfo.id];
-            if (packageInfo_credits) {
-              await CreditService.addCredits(packageInfo_credits.credits);
-              addDebugInfo('✅ Mock purchase: +' + packageInfo_credits.credits + ' kredi eklendi');
+            const packageCredits = IAPService.CREDIT_PACKAGES[packageInfo.id];
+            if (packageCredits) {
+              await CreditService.addCredits(packageCredits.credits);
             }
             
             await FirstTimeService.markFreeAnalysisUsed();
             
             Alert.alert(
-              `🎉 Test Purchase Success`,
-              `Mock purchase completed for ${packageInfo.credits} credits.`,
+              `🎉 ${t('purchaseSuccess')}`,
+              `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
               [{ 
-                text: 'OK', 
+                text: t('startAnalyzing'), 
                 onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
               }]
             );
             return;
           }
           
-          addDebugInfo('💳 Gerçek IAP satın alma başlıyor...');
           const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
-          addDebugInfo('✅ Purchase completed: ' + JSON.stringify(purchaseResult));
           
           await FirstTimeService.markFreeAnalysisUsed();
           
@@ -300,46 +264,26 @@ const PurchaseScreen = ({ navigation }) => {
           );
           
         } catch (purchaseError) {
-          addDebugInfo('❌ Purchase error: ' + purchaseError.message);
-          
           if (purchaseError.message?.includes('iptal') || 
               purchaseError.message?.includes('cancel') ||
               purchaseError.message?.includes('cancelled')) {
-            addDebugInfo('ℹ️ User cancelled purchase');
             return;
           }
           throw purchaseError;
         }
       } else {
-        addDebugInfo('⚠️ IAP not available - mock mode');
-        
-        // Otomatik mock mode
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        const packageInfo_credits = IAPService.CREDIT_PACKAGES[packageInfo.id];
-        if (packageInfo_credits) {
-          await CreditService.addCredits(packageInfo_credits.credits);
-          addDebugInfo('✅ Auto mock purchase: +' + packageInfo_credits.credits + ' kredi eklendi');
-        }
-        
-        await FirstTimeService.markFreeAnalysisUsed();
-        
         Alert.alert(
-          '🎉 Test Mode Purchase',
-          `IAP çalışmadığı için mock purchase yapıldı.\n\n${packageInfo.credits} kredi eklendi.\n\nGerçek App Store'da normal çalışacak.`,
-          [{ 
-            text: 'Anladım', 
-            onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
-          }]
+          t('unavailable') || 'Kullanılamıyor',
+          t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
         );
       }
 
     } catch (error) {
-      addDebugInfo('❌ Critical purchase error: ' + error.message);
+      console.error('Purchase error:', error);
       
       Alert.alert(
         'Satın Alma Hatası',
-        `Hata: ${error.message}\n\nDebug bilgileri için 'Debug Göster' butonuna basın.`,
+        'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
         [{ text: 'Tamam' }]
       );
     } finally {
@@ -348,7 +292,6 @@ const PurchaseScreen = ({ navigation }) => {
       
       setTimeout(async () => {
         await loadCurrentCredits();
-        addDebugInfo('🔄 Krediler güncellendi');
       }, 2000);
     }
   };
@@ -444,12 +387,7 @@ const PurchaseScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
-        <TouchableOpacity 
-          onPress={() => setShowDebug(!showDebug)} 
-          style={styles.debugButton}
-        >
-          <Ionicons name="bug" size={20} color="#6b7280" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -460,21 +398,6 @@ const PurchaseScreen = ({ navigation }) => {
             <Text style={styles.creditsCount}>{currentCredits}</Text>
           </View>
         </View>
-
-        {showDebug && (
-          <View style={styles.debugContainer}>
-            <View style={styles.debugHeader}>
-              <Ionicons name="bug" size={20} color="#dc2626" />
-              <Text style={styles.debugTitle}>Debug Bilgileri (Windows için)</Text>
-              <TouchableOpacity onPress={() => setDebugInfo('')}>
-                <Text style={styles.clearDebug}>Temizle</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.debugScrollView} nestedScrollEnabled>
-              <Text style={styles.debugText}>{debugInfo}</Text>
-            </ScrollView>
-          </View>
-        )}
 
         <View style={styles.howItWorksCard}>
           <View style={styles.howItWorksHeader}>
@@ -531,20 +454,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  debugButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#1f2937',
     textAlign: 'center',
     flex: 1,
+  },
+  placeholder: {
+    width: 40,
   },
   content: {
     flex: 1,
@@ -573,41 +491,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#1e293b',
-  },
-  debugContainer: {
-    backgroundColor: '#fef2f2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  debugHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#dc2626',
-    flex: 1,
-    marginLeft: 8,
-  },
-  clearDebug: {
-    fontSize: 12,
-    color: '#dc2626',
-    textDecorationLine: 'underline',
-  },
-  debugScrollView: {
-    maxHeight: 200,
-  },
-  debugText: {
-    fontSize: 11,
-    color: '#7f1d1d',
-    fontFamily: 'monospace',
-    lineHeight: 16,
   },
   howItWorksCard: {
     backgroundColor: '#eff6ff',
