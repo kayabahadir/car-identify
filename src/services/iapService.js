@@ -106,19 +106,29 @@ class IAPService {
     try {
       // Mock mode'da products yüklemeyeceğiz
       if (!InAppPurchases) {
+        console.log('IAP Mock mode - no products to load');
         this.products = [];
         return [];
       }
       
       const productIds = Object.values(this.PRODUCT_IDS);
+      console.log('Loading IAP products with IDs:', productIds);
+      
       const result = await InAppPurchases.getProductsAsync(productIds);
+      console.log('IAP getProductsAsync result:', result);
       
       const products = result?.results || [];
       this.products = products;
       
+      console.log('Loaded IAP products:', products);
       return this.products;
     } catch (error) {
       console.error('Failed to load products:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       this.products = [];
       return [];
     }
