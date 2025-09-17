@@ -158,13 +158,12 @@ class IAPServiceSimple {
 
   /**
    * CONSUMABLE ürünler restore edilmez
+   * Apple Guidelines 3.1.1: Consumable products cannot be restored
    */
   static async restorePurchases() {
-    Alert.alert(
-      'Geri Yükleme',
-      'Kredi paketleri tüketilebilir ürünlerdir ve geri yüklenemez.',
-      [{ text: 'Tamam' }]
-    );
+    // Consumable IAP'lar için restore işlemi yapılmaz
+    // Apple'ın policy'sine göre consumable ürünler restore edilemez
+    return Promise.resolve();
   }
 }
 

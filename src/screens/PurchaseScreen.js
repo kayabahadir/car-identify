@@ -168,9 +168,11 @@ const PurchaseScreen = ({ navigation }) => {
 
   const initializeIAP = async () => {
     try {
+      console.log('Initializing IAP...');
       const available = await IAPService.isAvailable();
+      console.log('IAP available:', available);
       if (!available) {
-        console.log('IAP not available');
+        console.log('IAP not available - will use fallback products');
       }
     } catch (error) {
       console.error('Error initializing IAP:', error);
@@ -188,18 +190,23 @@ const PurchaseScreen = ({ navigation }) => {
 
   const loadIAPProducts = async () => {
     try {
+      console.log('Loading IAP products...');
       const available = await IAPService.isAvailable();
+      console.log('IAP available for products:', available);
 
       if (available) {
         await IAPService.initialize();
         const products = await IAPService.getProducts();
+        console.log('Loaded IAP products:', products);
 
         if (products && products.length > 0) {
           setIapProducts(products);
         } else {
+          console.log('No IAP products found, using fallback');
           setFallbackProducts();
         }
       } else {
+        console.log('IAP not available, using fallback products');
         setFallbackProducts();
       }
     } catch (error) {
@@ -222,7 +229,9 @@ const PurchaseScreen = ({ navigation }) => {
     setSelectedPackage(packageInfo.id);
 
     try {
+      console.log('Starting purchase for:', packageInfo.id);
       const iapAvailable = await IAPService.isAvailable();
+      console.log('IAP available for purchase:', iapAvailable);
       
       if (iapAvailable) {
         try {
@@ -272,6 +281,7 @@ const PurchaseScreen = ({ navigation }) => {
           throw purchaseError;
         }
       } else {
+        console.log('IAP not available - showing error message');
         Alert.alert(
           t('unavailable') || 'Kullanılamıyor',
           t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'

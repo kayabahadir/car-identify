@@ -45,23 +45,28 @@ class IAPService {
   static async initialize() {
     try {
       if (this.isInitialized) {
+        console.log('IAP already initialized');
         return true;
       }
 
       // Mock mode'da direkt initialize
       if (!InAppPurchases) {
+        console.log('IAP Mock mode - initializing');
         this.isInitialized = true;
         return true;
       }
       
+      console.log('Connecting to IAP service...');
       // IAP sistemini başlat
       await InAppPurchases.connectAsync();
       
       this.isInitialized = true;
+      console.log('IAP service initialized successfully');
       return true;
       
     } catch (error) {
       console.error('Failed to initialize IAP service:', error);
+      this.isInitialized = false;
       return false;
     }
   }
@@ -73,14 +78,20 @@ class IAPService {
     try {
       // Mock mode'da her zaman available
       if (!InAppPurchases) {
+        console.log('IAP Mock mode - always available');
         return true;
       }
 
       if (!this.isInitialized) {
-        await this.initialize();
+        const initResult = await this.initialize();
+        if (!initResult) {
+          console.log('IAP initialization failed');
+          return false;
+        }
       }
 
       const available = await InAppPurchases.isAvailableAsync();
+      console.log('IAP availability check:', available);
       return available;
     } catch (error) {
       console.error('Error checking IAP availability:', error);
@@ -215,13 +226,12 @@ class IAPService {
 
   /**
    * CONSUMABLE IAP'lar restore edilmez!
+   * Apple Guidelines 3.1.1: Consumable products cannot be restored
    */
   static async restorePurchases() {
-    Alert.alert(
-      'Kredi Geri Yükleme',
-      'Kredi paketleri tüketilebilir ürünlerdir ve otomatik olarak geri yüklenmez. Krediniz bittiyse yeni kredi paketi satın alabilirsiniz.',
-      [{ text: 'Anladım' }]
-    );
+    // Consumable IAP'lar için restore işlemi yapılmaz
+    // Apple'ın policy'sine göre consumable ürünler restore edilemez
+    return Promise.resolve();
   }
 
   /**
