@@ -91,7 +91,7 @@ const PurchaseScreen = ({ navigation }) => {
   // Base package bilgileri - CONSUMABLE IAP ID'leri
   const basePackages = React.useMemo(() => [
     {
-      id: 'com.caridentify.credits.pack10',
+      id: 'com.caridentify.app.credits.pack10',
       credits: 10,
       title: language === 'tr' ? 'Başlangıç' : 'Starter',
       subtitle: language === 'tr' ? 'Küçük projeler için' : 'For small projects',
@@ -99,7 +99,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 0
     },
     {
-      id: 'com.caridentify.credits.pack50',
+      id: 'com.caridentify.app.credits.pack50',
       credits: 50,
       title: language === 'tr' ? 'Popüler' : 'Popular',
       subtitle: language === 'tr' ? 'En çok tercih edilen' : 'Most preferred',
@@ -107,7 +107,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 30
     },
     {
-      id: 'com.caridentify.credits.pack200',
+      id: 'com.caridentify.app.credits.pack200',
       credits: 200,
       title: language === 'tr' ? 'Premium' : 'Premium',
       subtitle: language === 'tr' ? 'Büyük projeler için' : 'For large projects',
@@ -217,9 +217,9 @@ const PurchaseScreen = ({ navigation }) => {
 
   const setFallbackProducts = () => {
     const fallbackProducts = [
-      { productId: 'com.caridentify.credits.pack10', price: '₺99,99' },
-      { productId: 'com.caridentify.credits.pack50', price: '₺289,99' },
-      { productId: 'com.caridentify.credits.pack200', price: '₺829,99' }
+      { productId: 'com.caridentify.app.credits.pack10', price: '₺99,99' },
+      { productId: 'com.caridentify.app.credits.pack50', price: '₺289,99' },
+      { productId: 'com.caridentify.app.credits.pack200', price: '₺829,99' }
     ];
     setIapProducts(fallbackProducts);
   };

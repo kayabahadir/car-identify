@@ -18,16 +18,16 @@ class IAPServiceSimple {
 
   // IAP ürün ID'leri - YENİ CONSUMABLE products
   static PRODUCT_IDS = {
-    CREDITS_10: 'com.caridentify.credits.pack10',
-    CREDITS_50: 'com.caridentify.credits.pack50', 
-    CREDITS_200: 'com.caridentify.credits.pack200'
+    CREDITS_10: 'com.caridentify.app.credits.pack10',
+    CREDITS_50: 'com.caridentify.app.credits.pack50', 
+    CREDITS_200: 'com.caridentify.app.credits.pack200'
   };
 
   // Kredi paketleri mapping
   static CREDIT_PACKAGES = {
-    'com.caridentify.credits.pack10': { credits: 10 },
-    'com.caridentify.credits.pack50': { credits: 50 },
-    'com.caridentify.credits.pack200': { credits: 200 }
+    'com.caridentify.app.credits.pack10': { credits: 10 },
+    'com.caridentify.app.credits.pack50': { credits: 50 },
+    'com.caridentify.app.credits.pack200': { credits: 200 }
   };
 
   /**
