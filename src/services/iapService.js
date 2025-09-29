@@ -91,6 +91,13 @@ class IAPService {
         }
       }
 
+      // SDK compatibility: some versions might not expose isAvailableAsync
+      const hasIsAvailableFn = typeof InAppPurchases.isAvailableAsync === 'function';
+      if (!hasIsAvailableFn) {
+        console.log('IAP isAvailableAsync not found; assuming available and relying on product fetch');
+        return true;
+      }
+
       const available = await InAppPurchases.isAvailableAsync();
       console.log('IAP availability check:', available);
       return available;
@@ -109,6 +116,9 @@ class IAPService {
       moduleLoaded: !!InAppPurchases,
       platform: Platform.OS,
       bundleIdentifier: Constants?.expoConfig?.ios?.bundleIdentifier || Constants?.manifest?.ios?.bundleIdentifier || 'unknown',
+      hasConnectAsync: !!InAppPurchases && typeof InAppPurchases.connectAsync === 'function',
+      hasIsAvailableAsync: !!InAppPurchases && typeof InAppPurchases.isAvailableAsync === 'function',
+      hasGetProductsAsync: !!InAppPurchases && typeof InAppPurchases.getProductsAsync === 'function',
       isAvailable: null,
       productsCount: null,
       lastError: null,
@@ -125,13 +135,22 @@ class IAPService {
         diagnostics.initialized = this.isInitialized;
       }
 
-      diagnostics.isAvailable = await InAppPurchases.isAvailableAsync();
+      if (typeof InAppPurchases.isAvailableAsync === 'function') {
+        diagnostics.isAvailable = await InAppPurchases.isAvailableAsync();
+      } else {
+        diagnostics.isAvailable = 'unknown';
+      }
 
       try {
-        const ids = Object.values(this.PRODUCT_IDS);
-        const result = await InAppPurchases.getProductsAsync(ids);
-        const products = result?.results || [];
-        diagnostics.productsCount = products.length;
+        if (typeof InAppPurchases.getProductsAsync === 'function') {
+          const ids = Object.values(this.PRODUCT_IDS);
+          const result = await InAppPurchases.getProductsAsync(ids);
+          const products = result?.results || [];
+          diagnostics.productsCount = products.length;
+        } else {
+          diagnostics.productsCount = 'unknown';
+          diagnostics.lastError = 'getProductsAsync not available in SDK';
+        }
       } catch (err) {
         diagnostics.lastError = err?.message || String(err);
       }
