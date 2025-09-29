@@ -1,5 +1,6 @@
 import CreditService from './creditService';
 import { Alert, Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
@@ -97,6 +98,48 @@ class IAPService {
       console.error('Error checking IAP availability:', error);
       return false;
     }
+  }
+
+  /**
+   * Tanı amaçlı ayrıntılı durum döndürür
+   */
+  static async diagnose() {
+    const diagnostics = {
+      initialized: this.isInitialized,
+      moduleLoaded: !!InAppPurchases,
+      platform: Platform.OS,
+      bundleIdentifier: Constants?.expoConfig?.ios?.bundleIdentifier || Constants?.manifest?.ios?.bundleIdentifier || 'unknown',
+      isAvailable: null,
+      productsCount: null,
+      lastError: null,
+    };
+
+    try {
+      if (!InAppPurchases) {
+        diagnostics.lastError = 'InAppPurchases module not available';
+        return diagnostics;
+      }
+
+      if (!this.isInitialized) {
+        await this.initialize();
+        diagnostics.initialized = this.isInitialized;
+      }
+
+      diagnostics.isAvailable = await InAppPurchases.isAvailableAsync();
+
+      try {
+        const ids = Object.values(this.PRODUCT_IDS);
+        const result = await InAppPurchases.getProductsAsync(ids);
+        const products = result?.results || [];
+        diagnostics.productsCount = products.length;
+      } catch (err) {
+        diagnostics.lastError = err?.message || String(err);
+      }
+    } catch (error) {
+      diagnostics.lastError = error?.message || String(error);
+    }
+
+    return diagnostics;
   }
 
   /**

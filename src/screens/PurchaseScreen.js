@@ -281,11 +281,25 @@ const PurchaseScreen = ({ navigation }) => {
           throw purchaseError;
         }
       } else {
-        console.log('IAP not available - showing error message');
-        Alert.alert(
-          t('unavailable') || 'Kullanılamıyor',
-          t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
-        );
+        console.log('IAP not available - running diagnostics');
+        try {
+          const diag = await IAPService.diagnose();
+          Alert.alert(
+            t('unavailable') || 'Kullanılamıyor',
+            `${t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor.'}\n\n` +
+            `Initialized: ${String(diag.initialized)}\n` +
+            `Module: ${String(diag.moduleLoaded)}\n` +
+            `Available: ${String(diag.isAvailable)}\n` +
+            `Products: ${diag.productsCount ?? 'n/a'}\n` +
+            `Bundle: ${diag.bundleIdentifier}\n` +
+            (diag.lastError ? `Last error: ${diag.lastError}` : '')
+          );
+        } catch (e) {
+          Alert.alert(
+            t('unavailable') || 'Kullanılamıyor',
+            t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
+          );
+        }
       }
 
     } catch (error) {
