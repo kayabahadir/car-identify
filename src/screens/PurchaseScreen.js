@@ -8,19 +8,23 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import IAPService from '../services/iapService';
 import FirstTimeService from '../services/firstTimeService';
+import DebugService from '../services/debugService';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
 try {
   InAppPurchases = require('expo-in-app-purchases');
+  console.log('✅ PurchaseScreen: InAppPurchases module loaded successfully');
 } catch (error) {
-  console.warn('⚠️ InAppPurchases module not available');
+  console.warn('⚠️ PurchaseScreen: InAppPurchases module not available - will use mock mode');
 }
 
 const PurchaseScreen = ({ navigation }) => {
@@ -229,13 +233,43 @@ const PurchaseScreen = ({ navigation }) => {
     setSelectedPackage(packageInfo.id);
 
     try {
-      console.log('Starting purchase for:', packageInfo.id);
+      DebugService.log('Purchase Start', `Starting purchase for: ${packageInfo.id}`, false);
+      DebugService.log('IAP Module', `InAppPurchases loaded: ${!!InAppPurchases}`, false);
+      
       const iapAvailable = await IAPService.isAvailable();
-      console.log('IAP available for purchase:', iapAvailable);
+      DebugService.log('IAP Available', `IAP available: ${iapAvailable}`, false);
+      
+      // Debug: IAP diagnostics
+      const diagnostics = await IAPService.diagnose();
+      DebugService.log('IAP Diagnostics', JSON.stringify(diagnostics, null, 2), false);
       
       if (iapAvailable) {
         try {
-          if (!InAppPurchases) {
+          // Development/Simulator ortamında IAP çalışmaz
+          const isSimulator = Platform.OS === 'ios' && !Constants.isDevice;
+          const isExpoGo = Constants.appOwnership === 'expo';
+          
+          const envInfo = `
+Platform: ${Platform.OS}
+Device: ${Constants.isDevice}
+Simulator: ${isSimulator}
+App Ownership: ${Constants.appOwnership}
+Expo Go: ${isExpoGo}
+Module Loaded: ${!!InAppPurchases}`;
+
+          DebugService.log('Environment Check', envInfo, true);
+          
+          // TestFlight'ta InAppPurchases modülü yüklü olmalı ama çalışmayabilir
+          // Bu durumda gerçek IAP'ı denememiz gerekiyor
+          const shouldUseMock = !InAppPurchases || isSimulator || isExpoGo;
+          
+          if (shouldUseMock) {
+            const reason = !InAppPurchases ? 'Module not available' : 
+                         isSimulator ? 'Running on simulator' : 
+                         'Running in Expo Go';
+            
+            DebugService.log('Mock Purchase', `Reason: ${reason}`, true);
+            
             // Mock purchase for development/testing
             await new Promise(resolve => setTimeout(resolve, 2000));
             
@@ -247,7 +281,7 @@ const PurchaseScreen = ({ navigation }) => {
             await FirstTimeService.markFreeAnalysisUsed();
             
             Alert.alert(
-              `🎉 ${t('purchaseSuccess')}`,
+              `🎉 ${t('purchaseSuccess')} (Mock - ${reason})`,
               `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
               [{ 
                 text: t('startAnalyzing'), 
@@ -257,7 +291,11 @@ const PurchaseScreen = ({ navigation }) => {
             return;
           }
           
+          DebugService.log('Real IAP', `Starting real purchase for: ${packageInfo.id}`, true);
+          
           const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
+          
+          DebugService.log('Purchase Result', JSON.stringify(purchaseResult, null, 2), true);
           
           await FirstTimeService.markFreeAnalysisUsed();
           
@@ -280,27 +318,48 @@ const PurchaseScreen = ({ navigation }) => {
           }
           throw purchaseError;
         }
-      } else {
-        console.log('IAP not available - running diagnostics');
-        try {
-          const diag = await IAPService.diagnose();
-          Alert.alert(
-            t('unavailable') || 'Kullanılamıyor',
-            `${t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor.'}\n\n` +
-            `Initialized: ${String(diag.initialized)}\n` +
-            `Module: ${String(diag.moduleLoaded)}\n` +
-            `Available: ${String(diag.isAvailable)}\n` +
-            `Products: ${diag.productsCount ?? 'n/a'}\n` +
-            `Bundle: ${diag.bundleIdentifier}\n` +
-            (diag.lastError ? `Last error: ${diag.lastError}` : '')
-          );
-        } catch (e) {
-          Alert.alert(
-            t('unavailable') || 'Kullanılamıyor',
-            t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
-          );
+        } else {
+          console.log('❌ IAP not available - running diagnostics');
+          try {
+            const diag = await IAPService.diagnose();
+            console.log('🔍 Full diagnostics:', diag);
+            
+            Alert.alert(
+              'IAP Debug Info',
+              `Satın almalar şu anda kullanılamıyor.\n\n` +
+              `📱 Platform: ${Platform.OS}\n` +
+              `🔧 Initialized: ${String(diag.initialized)}\n` +
+              `📦 Module: ${String(diag.moduleLoaded)}\n` +
+              `✅ Available: ${String(diag.isAvailable)}\n` +
+              `🛍️ Products: ${diag.productsCount ?? 'n/a'}\n` +
+              `📋 Bundle: ${diag.bundleIdentifier}\n` +
+              `🔗 Device: ${Constants.isDevice}\n` +
+              `🏗️ Ownership: ${Constants.appOwnership}\n` +
+              (diag.lastError ? `❌ Error: ${diag.lastError}` : ''),
+              [
+                { text: 'Tamam' },
+                { 
+                  text: 'Test Mock Purchase', 
+                  onPress: async () => {
+                    // Force mock purchase for testing
+                    console.log('🎭 Forcing mock purchase for testing...');
+                    const packageCredits = IAPService.CREDIT_PACKAGES[packageInfo.id];
+                    if (packageCredits) {
+                      await CreditService.addCredits(packageCredits.credits);
+                      Alert.alert('Test Başarılı', `${packageCredits.credits} kredi eklendi (Test)`);
+                    }
+                  }
+                }
+              ]
+            );
+          } catch (e) {
+            console.error('❌ Error during diagnostics:', e);
+            Alert.alert(
+              'Debug Error',
+              `Diagnostics failed: ${e.message}\n\nThis suggests a deeper IAP integration issue.`
+            );
+          }
         }
-      }
 
     } catch (error) {
       console.error('Purchase error:', error);
@@ -411,7 +470,15 @@ const PurchaseScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
-        <View style={styles.placeholder} />
+        {__DEV__ && (
+          <TouchableOpacity 
+            onPress={() => DebugService.showIAPDebug()} 
+            style={styles.debugButton}
+          >
+            <Ionicons name="bug" size={20} color="#6366f1" />
+          </TouchableOpacity>
+        )}
+        {!__DEV__ && <View style={styles.placeholder} />}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -487,6 +554,14 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  debugButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
