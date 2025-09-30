@@ -21,6 +21,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
       "buildNumber": "17",
+      "capabilities": [
+        "inAppPurchase"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera to capture car images for identification.",
         "NSPhotoLibraryUsageDescription": "This app accesses photo library to select car images for identification.",
@@ -65,8 +68,7 @@
         {
           "cameraPermission": "This app uses camera to capture car images for identification."
         }
-      ],
-      "expo-in-app-purchases"
+      ]
     ]
   }
 }

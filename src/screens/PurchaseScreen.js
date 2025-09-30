@@ -470,15 +470,12 @@ Module Loaded: ${!!InAppPurchases}`;
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
-        {__DEV__ && (
-          <TouchableOpacity 
-            onPress={() => DebugService.showIAPDebug()} 
-            style={styles.debugButton}
-          >
-            <Ionicons name="bug" size={20} color="#6366f1" />
-          </TouchableOpacity>
-        )}
-        {!__DEV__ && <View style={styles.placeholder} />}
+        <TouchableOpacity 
+          onPress={() => DebugService.showIAPDebug()} 
+          style={styles.debugButton}
+        >
+          <Ionicons name="bug" size={20} color="#6366f1" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

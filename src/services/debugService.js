@@ -6,11 +6,11 @@ import { Alert } from 'react-native';
  */
 class DebugService {
   static debugLogs = [];
-  static isEnabled = __DEV__; // Sadece development'ta aktif
+  static isEnabled = true; // Production'da da aktif (geçici olarak)
   
-  // Production'da debug'ı tamamen devre dışı bırak
+  // Şimdilik her zaman aktif
   static get shouldShowAlerts() {
-    return this.isEnabled && __DEV__;
+    return this.isEnabled;
   }
 
   /**
@@ -98,8 +98,15 @@ class DebugService {
    */
   static async showIAPDebug() {
     try {
-      // Lazy import to avoid circular dependency
-      const { default: IAPService } = await import('./iapService');
+      // Lazy require to avoid circular dependency
+      let IAPService;
+      try {
+        IAPService = require('./iapService').default;
+      } catch (e) {
+        Alert.alert('Debug Error', 'Could not load IAP Service');
+        return;
+      }
+      
       const diagnostics = await IAPService.diagnose();
       
       const debugInfo = `
