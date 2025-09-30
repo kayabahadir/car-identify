@@ -60,7 +60,32 @@ class IAPService {
       console.log('Connecting to IAP service...');
       // IAP sistemini başlat
       await InAppPurchases.connectAsync();
-      
+
+      // Satın alma listener'ı (bir kez) kur
+      if (!this.purchaseListener && typeof InAppPurchases.setPurchaseListener === 'function') {
+        this.purchaseListener = InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
+          try {
+            if (responseCode === InAppPurchases.IAPResponseCode.OK && Array.isArray(results)) {
+              for (const purchase of results) {
+                // Başarılı satın alma
+                if (purchase.acknowledged === false || purchase.acknowledged === undefined) {
+                  await this.handleSuccessfulPurchase(purchase);
+                  if (purchase.transactionId || purchase.purchaseToken) {
+                    await InAppPurchases.finishTransactionAsync(purchase, true);
+                  }
+                }
+              }
+            } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+              console.log('IAP purchase canceled by user');
+            } else if (errorCode) {
+              console.error('IAP listener error:', errorCode);
+            }
+          } catch (listenerErr) {
+            console.error('Error in purchase listener:', listenerErr);
+          }
+        });
+      }
+
       this.isInitialized = true;
       console.log('IAP service initialized successfully');
       return true;
@@ -232,21 +257,8 @@ class IAPService {
       
       // Purchase işlemini başlat
       const result = await InAppPurchases.purchaseItemAsync(productId);
-      
-      // Purchase başarılıysa kredileri ekle
-      if (result && result.results && result.results.length > 0) {
-        const purchase = result.results[0];
-        
-        // CONSUMABLE IAP için her zaman kredileri ekle
-        await this.handleSuccessfulPurchase(purchase);
-        
-        // Purchase'ı consume et (consumable için gerekli)
-        if (purchase.transactionId || purchase.purchaseToken) {
-          await InAppPurchases.finishTransactionAsync(purchase, true);
-        }
-      }
-      
-      return { productId, status: 'completed', result };
+      // Asıl kredi ekleme purchase listener içinde yapılır
+      return { productId, status: 'started', result };
       
     } catch (error) {
       console.error('Purchase failed:', error);

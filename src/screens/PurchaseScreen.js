@@ -379,7 +379,7 @@ const PurchaseScreen = ({ navigation }) => {
         </View>
         <View style={styles.featureRow}>
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
-          <Text style={styles.featureText}>{t('detailedVehicleInformation')}</Text>
+          <Text style={styles.featureText}>{t('detailedVehicleInfo')}</Text>
         </View>
         <View style={styles.featureRow}>
           <Ionicons name="checkmark-circle" size={16} color="#4ade80" />

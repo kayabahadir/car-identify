@@ -128,7 +128,7 @@ const translations = {
     premiumPackageDesc: 'Büyük projeler için',
     
     // Package Features
-    unlimitedAnalysisRights: 'Sınırsız analiz hakkı',
+    unlimitedAnalysisRights: 'Krediniz bitene kadar sınırsız sorgu',
     detailedVehicleInfo: 'Detaylı araç bilgileri',
     pastAnalysisRecords: 'Geçmiş analiz kayıtları',
     buy: 'Satın Al',
@@ -340,7 +340,7 @@ const translations = {
     premiumPackageDesc: 'For large projects',
     
     // Package Features
-    unlimitedAnalysisRights: 'Unlimited analysis rights',
+    unlimitedAnalysisRights: 'Unlimited queries until your credits run out',
     detailedVehicleInfo: 'Detailed vehicle information',
     pastAnalysisRecords: 'Past analysis records',
     buy: 'Buy',
