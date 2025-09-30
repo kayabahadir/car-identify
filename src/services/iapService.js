@@ -102,10 +102,11 @@ class IAPService {
 
   /**
    * IAP'ın kullanılabilir olup olmadığını kontrol eder
+   * SDK 54'te isAvailableAsync kaldırıldı, direkt product loading ile kontrol ediyoruz
    */
   static async isAvailable() {
     try {
-      DebugService.log('IAP Check', 'Checking IAP availability...', false);
+      DebugService.log('IAP Check', 'Checking IAP availability (SDK 54 fix)...', true);
       
       // Mock mode'da her zaman available
       if (!InAppPurchases) {
@@ -113,61 +114,46 @@ class IAPService {
         return true;
       }
 
-      DebugService.log('IAP Module', 'InAppPurchases module loaded successfully', false);
+      DebugService.log('IAP Module', 'InAppPurchases module loaded successfully', true);
 
       if (!this.isInitialized) {
-        console.log('🔄 IAP not initialized, initializing...');
+        DebugService.log('IAP Initializing', 'IAP not initialized, initializing...', true);
         const initResult = await this.initialize();
         if (!initResult) {
-          console.log('❌ IAP initialization failed');
+          DebugService.log('IAP Init Failed', 'IAP initialization failed', true);
           return false;
         }
-        console.log('✅ IAP initialized successfully');
+        DebugService.log('IAP Init Success', 'IAP initialized successfully', true);
       }
 
-      // SDK compatibility: some versions might not expose isAvailableAsync
-      const hasIsAvailableFn = typeof InAppPurchases.isAvailableAsync === 'function';
-      if (!hasIsAvailableFn) {
-        console.log('⚠️ IAP isAvailableAsync not found; assuming available and relying on product fetch');
-        return true;
-      }
-
-      DebugService.log('IAP Availability', 'Checking with isAvailableAsync...', false);
-      const available = await InAppPurchases.isAvailableAsync();
-      DebugService.log('IAP Result', `isAvailableAsync returned: ${available}`, true);
+      // SDK 54'te isAvailableAsync fonksiyonu kaldırıldı
+      // Direkt product loading ile availability kontrol edelim
+      DebugService.log('IAP Product Test', 'Testing IAP by loading products directly (isAvailableAsync removed in SDK 54)', true);
       
-      if (!available) {
-        DebugService.log('IAP Fallback', 'isAvailable=false, trying product loading...', true);
+      try {
+        const productIds = Object.values(this.PRODUCT_IDS);
+        DebugService.log('IAP Product IDs', `Loading products: ${productIds.join(', ')}`, true);
         
-        // TestFlight'ta bazen isAvailable false döner ama products yüklenebilir
-        // Bu durumda product loading'e güvenelim
-        try {
-          const productIds = Object.values(this.PRODUCT_IDS);
-          const result = await InAppPurchases.getProductsAsync(productIds);
-          const products = result?.results || [];
-          
-          if (products.length > 0) {
-            DebugService.log('IAP Success', `Products loaded (${products.length}) despite isAvailable=false!`, true);
-            return true;
-          } else {
-            DebugService.log('IAP Failed', 'No products loaded - IAP truly unavailable', true);
-            return false;
-          }
-        } catch (productError) {
-          console.error('❌ Product loading also failed:', productError);
+        const result = await InAppPurchases.getProductsAsync(productIds);
+        DebugService.log('IAP Product Result', `getProductsAsync completed`, true);
+        
+        const products = result?.results || [];
+        
+        if (products.length > 0) {
+          DebugService.log('IAP Available', `✅ Found ${products.length} products - IAP is available!`, true);
+          // Cache products for later use
+          this.products = products;
+          return true;
+        } else {
+          DebugService.log('IAP No Products', `❌ No products found. Check App Store Connect configuration.`, true);
           return false;
         }
+      } catch (productError) {
+        DebugService.error('IAP Product Error', `Product loading failed: ${productError.message}`, true);
+        return false;
       }
-      
-      console.log('✅ IAP is available');
-      return available;
     } catch (error) {
-      console.error('❌ Error checking IAP availability:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
+      DebugService.error('IAP Availability Error', `Overall availability check failed: ${error.message}`, true);
       return false;
     }
   }
@@ -344,16 +330,22 @@ class IAPService {
   }
 
   /**
-   * Mock purchase for development
+   * Mock purchase for development - Enhanced for testing
    */
   static async mockPurchase(productId) {
+    DebugService.log('Mock Purchase', `Starting mock purchase for ${productId}`, true);
+    
     // 2 saniye bekle (simulate purchase flow)
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Mock success
     const packageInfo = this.CREDIT_PACKAGES[productId];
     if (packageInfo) {
+      DebugService.log('Mock Credits', `Adding ${packageInfo.credits} credits`, true);
       await CreditService.addCredits(packageInfo.credits);
+      DebugService.log('Mock Success', `Successfully added ${packageInfo.credits} credits!`, true);
+    } else {
+      DebugService.error('Mock Error', `Product ${productId} not found in CREDIT_PACKAGES`, true);
     }
     
     return { productId, status: 'mock_completed' };

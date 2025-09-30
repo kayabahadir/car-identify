@@ -243,9 +243,14 @@ const PurchaseScreen = ({ navigation }) => {
       const diagnostics = await IAPService.diagnose();
       DebugService.log('IAP Diagnostics', JSON.stringify(diagnostics, null, 2), false);
       
-      if (iapAvailable) {
+      // SDK 54'te isAvailableAsync kaldırıldı, modül yüklüyse gerçek IAP'ı deneyelim
+      const shouldTryIAP = InAppPurchases !== null;
+      
+      DebugService.log('IAP Decision', `Should try IAP: ${shouldTryIAP}, Availability: ${iapAvailable}`, true);
+      
+      if (shouldTryIAP) {
         try {
-          // Development/Simulator ortamında IAP çalışmaz
+          // Environment bilgilerini topla
           const isSimulator = Platform.OS === 'ios' && !Constants.isDevice;
           const isExpoGo = Constants.appOwnership === 'expo';
           
@@ -255,13 +260,14 @@ Device: ${Constants.isDevice}
 Simulator: ${isSimulator}
 App Ownership: ${Constants.appOwnership}
 Expo Go: ${isExpoGo}
-Module Loaded: ${!!InAppPurchases}`;
+Module Loaded: ${!!InAppPurchases}
+IAP Available: ${iapAvailable}`;
 
           DebugService.log('Environment Check', envInfo, true);
           
-          // TestFlight'ta InAppPurchases modülü yüklü olmalı ama çalışmayabilir
-          // Bu durumda gerçek IAP'ı denememiz gerekiyor
-          const shouldUseMock = !InAppPurchases || isSimulator || isExpoGo;
+          // TestFlight'ta gerçek IAP'ı denememiz gerekiyor
+          // Sadece modül yoksa mock kullan, device detection'a güvenme
+          const shouldUseMock = !InAppPurchases;
           
           if (shouldUseMock) {
             const reason = !InAppPurchases ? 'Module not available' : 
