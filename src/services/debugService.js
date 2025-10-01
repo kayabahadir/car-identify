@@ -6,11 +6,11 @@ import { Alert } from 'react-native';
  */
 class DebugService {
   static debugLogs = [];
-  static isEnabled = true; // Production'da da aktif (geçici olarak)
+  static isEnabled = __DEV__; // Sadece development'ta aktif
   
-  // Şimdilik her zaman aktif
+  // Production'da debug'ı devre dışı bırak
   static get shouldShowAlerts() {
-    return this.isEnabled;
+    return this.isEnabled && __DEV__;
   }
 
   /**

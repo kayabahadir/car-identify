@@ -23,6 +23,7 @@ class IAPService {
   static isInitialized = false;
   static products = [];
   static purchaseListener = null;
+  static isCheckingAvailability = false; // Promise guard
 
   // Receipt validation endpoint
   static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
@@ -106,54 +107,77 @@ class IAPService {
    */
   static async isAvailable() {
     try {
-      DebugService.log('IAP Check', 'Checking IAP availability (SDK 54 fix)...', true);
+      // Promise guard - aynı anda birden fazla çağrı engelle
+      if (this.isCheckingAvailability) {
+        DebugService.log('IAP Wait', 'Already checking availability, waiting...', true);
+        // Kısa bekle ve cached sonucu dön
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return this.products.length > 0;
+      }
+
+      this.isCheckingAvailability = true;
+      
+      console.log('🔍 Checking IAP availability (SDK 54 fix)...');
       
       // Mock mode'da her zaman available
       if (!InAppPurchases) {
-        DebugService.log('IAP Mock Mode', 'Module not loaded - using mock mode', true);
+        console.log('⚠️ IAP Mock Mode - Module not loaded');
+        this.isCheckingAvailability = false;
         return true;
       }
 
-      DebugService.log('IAP Module', 'InAppPurchases module loaded successfully', true);
+      console.log('✅ InAppPurchases module loaded successfully');
 
       if (!this.isInitialized) {
-        DebugService.log('IAP Initializing', 'IAP not initialized, initializing...', true);
+        console.log('🔄 IAP not initialized, initializing...');
         const initResult = await this.initialize();
         if (!initResult) {
-          DebugService.log('IAP Init Failed', 'IAP initialization failed', true);
+          console.log('❌ IAP initialization failed');
+          this.isCheckingAvailability = false;
           return false;
         }
-        DebugService.log('IAP Init Success', 'IAP initialized successfully', true);
+        console.log('✅ IAP initialized successfully');
+      }
+
+      // Eğer products zaten cache'de varsa, tekrar yükleme
+      if (this.products.length > 0) {
+        console.log(`📦 Using cached products (${this.products.length})`);
+        this.isCheckingAvailability = false;
+        return true;
       }
 
       // SDK 54'te isAvailableAsync fonksiyonu kaldırıldı
       // Direkt product loading ile availability kontrol edelim
-      DebugService.log('IAP Product Test', 'Testing IAP by loading products directly (isAvailableAsync removed in SDK 54)', true);
+      console.log('🛍️ Testing IAP by loading products directly (isAvailableAsync removed in SDK 54)');
       
       try {
         const productIds = Object.values(this.PRODUCT_IDS);
-        DebugService.log('IAP Product IDs', `Loading products: ${productIds.join(', ')}`, true);
+        console.log('📋 Loading products:', productIds.join(', '));
         
         const result = await InAppPurchases.getProductsAsync(productIds);
-        DebugService.log('IAP Product Result', `getProductsAsync completed`, true);
+        console.log('📊 getProductsAsync completed');
         
         const products = result?.results || [];
         
         if (products.length > 0) {
-          DebugService.log('IAP Available', `✅ Found ${products.length} products - IAP is available!`, true);
+          console.log(`✅ Found ${products.length} products - IAP is available!`);
           // Cache products for later use
           this.products = products;
+          this.isCheckingAvailability = false;
           return true;
         } else {
-          DebugService.log('IAP No Products', `❌ No products found. Check App Store Connect configuration.`, true);
+          console.log('❌ No products found. Check App Store Connect configuration.');
+          this.isCheckingAvailability = false;
           return false;
         }
       } catch (productError) {
-        DebugService.error('IAP Product Error', `Product loading failed: ${productError.message}`, true);
+        console.error('❌ Product loading failed:', productError.message);
+        this.isCheckingAvailability = false;
         return false;
       }
     } catch (error) {
-      DebugService.error('IAP Availability Error', `Overall availability check failed: ${error.message}`, true);
+      console.error('❌ Overall availability check failed:', error.message);
+      this.isCheckingAvailability = false;
       return false;
     }
   }
@@ -289,24 +313,24 @@ class IAPService {
    */
   static async purchaseProduct(productId) {
     try {
-      DebugService.log('Purchase Start', `Starting purchase for: ${productId}`, true);
+      console.log('🛒 Starting purchase for product:', productId);
       
       if (!this.isInitialized) {
-        DebugService.log('IAP Init', 'Initializing IAP...', false);
+        console.log('🔄 Initializing IAP...');
         await this.initialize();
       }
 
       // Mock mode'da simulated purchase
       if (!InAppPurchases) {
-        DebugService.log('Mock Purchase', 'InAppPurchases not available - using mock', true);
+        console.log('🎭 InAppPurchases not available - using mock');
         return await this.mockPurchase(productId);
       }
       
-      DebugService.log('Real Purchase', `Platform: ${Platform.OS}, Product: ${productId}`, true);
+      console.log('💳 Starting real IAP purchase - Platform:', Platform.OS, 'Product:', productId);
       
       // Purchase işlemini başlat
       const result = await InAppPurchases.purchaseItemAsync(productId);
-      DebugService.log('Purchase Complete', `Result: ${JSON.stringify(result)}`, true);
+      console.log('✅ Purchase completed:', result);
       
       // Asıl kredi ekleme purchase listener içinde yapılır
       return { productId, status: 'started', result };
@@ -333,7 +357,7 @@ class IAPService {
    * Mock purchase for development - Enhanced for testing
    */
   static async mockPurchase(productId) {
-    DebugService.log('Mock Purchase', `Starting mock purchase for ${productId}`, true);
+    console.log('🎭 Starting mock purchase for', productId);
     
     // 2 saniye bekle (simulate purchase flow)
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -341,11 +365,11 @@ class IAPService {
     // Mock success
     const packageInfo = this.CREDIT_PACKAGES[productId];
     if (packageInfo) {
-      DebugService.log('Mock Credits', `Adding ${packageInfo.credits} credits`, true);
+      console.log('💰 Adding', packageInfo.credits, 'credits (mock)');
       await CreditService.addCredits(packageInfo.credits);
-      DebugService.log('Mock Success', `Successfully added ${packageInfo.credits} credits!`, true);
+      console.log('✅ Successfully added', packageInfo.credits, 'credits!');
     } else {
-      DebugService.error('Mock Error', `Product ${productId} not found in CREDIT_PACKAGES`, true);
+      console.error('❌ Product', productId, 'not found in CREDIT_PACKAGES');
     }
     
     return { productId, status: 'mock_completed' };

@@ -233,37 +233,33 @@ const PurchaseScreen = ({ navigation }) => {
     setSelectedPackage(packageInfo.id);
 
     try {
-      DebugService.log('Purchase Start', `Starting purchase for: ${packageInfo.id}`, false);
-      DebugService.log('IAP Module', `InAppPurchases loaded: ${!!InAppPurchases}`, false);
+      console.log('🛒 Starting purchase for:', packageInfo.id);
+      console.log('📦 InAppPurchases loaded:', !!InAppPurchases);
       
       const iapAvailable = await IAPService.isAvailable();
-      DebugService.log('IAP Available', `IAP available: ${iapAvailable}`, false);
-      
-      // Debug: IAP diagnostics
-      const diagnostics = await IAPService.diagnose();
-      DebugService.log('IAP Diagnostics', JSON.stringify(diagnostics, null, 2), false);
+      console.log('✅ IAP available:', iapAvailable);
       
       // SDK 54'te isAvailableAsync kaldırıldı, modül yüklüyse gerçek IAP'ı deneyelim
       const shouldTryIAP = InAppPurchases !== null;
       
-      DebugService.log('IAP Decision', `Should try IAP: ${shouldTryIAP}, Availability: ${iapAvailable}`, true);
+      console.log('🎯 Should try IAP:', shouldTryIAP, 'Availability:', iapAvailable);
       
       if (shouldTryIAP) {
         try {
           // Environment bilgilerini topla
-          const isSimulator = Platform.OS === 'ios' && !Constants.isDevice;
+          const isDevice = Constants.isDevice ?? true; // undefined ise true kabul et
+          const isSimulator = Platform.OS === 'ios' && !isDevice;
           const isExpoGo = Constants.appOwnership === 'expo';
           
-          const envInfo = `
-Platform: ${Platform.OS}
-Device: ${Constants.isDevice}
-Simulator: ${isSimulator}
-App Ownership: ${Constants.appOwnership}
-Expo Go: ${isExpoGo}
-Module Loaded: ${!!InAppPurchases}
-IAP Available: ${iapAvailable}`;
-
-          DebugService.log('Environment Check', envInfo, true);
+          console.log('🔍 Environment Check:', {
+            platform: Platform.OS,
+            device: isDevice,
+            simulator: isSimulator,
+            appOwnership: Constants.appOwnership,
+            expoGo: isExpoGo,
+            moduleLoaded: !!InAppPurchases,
+            iapAvailable
+          });
           
           // TestFlight'ta gerçek IAP'ı denememiz gerekiyor
           // Sadece modül yoksa mock kullan, device detection'a güvenme
@@ -274,7 +270,7 @@ IAP Available: ${iapAvailable}`;
                          isSimulator ? 'Running on simulator' : 
                          'Running in Expo Go';
             
-            DebugService.log('Mock Purchase', `Reason: ${reason}`, true);
+            console.log('🎭 Mock Purchase - Reason:', reason);
             
             // Mock purchase for development/testing
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -297,11 +293,11 @@ IAP Available: ${iapAvailable}`;
             return;
           }
           
-          DebugService.log('Real IAP', `Starting real purchase for: ${packageInfo.id}`, true);
+          console.log('💳 Starting real IAP purchase for:', packageInfo.id);
           
           const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
           
-          DebugService.log('Purchase Result', JSON.stringify(purchaseResult, null, 2), true);
+          console.log('✅ Purchase result:', purchaseResult);
           
           await FirstTimeService.markFreeAnalysisUsed();
           
@@ -476,12 +472,15 @@ IAP Available: ${iapAvailable}`;
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
-        <TouchableOpacity 
-          onPress={() => DebugService.showIAPDebug()} 
-          style={styles.debugButton}
-        >
-          <Ionicons name="bug" size={20} color="#6366f1" />
-        </TouchableOpacity>
+        {__DEV__ && (
+          <TouchableOpacity 
+            onPress={() => DebugService.showIAPDebug()} 
+            style={styles.debugButton}
+          >
+            <Ionicons name="bug" size={20} color="#6366f1" />
+          </TouchableOpacity>
+        )}
+        {!__DEV__ && <View style={styles.placeholder} />}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
