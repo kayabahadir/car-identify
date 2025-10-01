@@ -67,27 +67,45 @@ class IAPService {
 
       // Satın alma listener'ı (bir kez) kur
       if (!this.purchaseListener && typeof InAppPurchases.setPurchaseListener === 'function') {
+        console.log('🎧 Setting up purchase listener...');
         this.purchaseListener = InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
           try {
+            console.log('🎧 Purchase listener triggered!', { responseCode, results, errorCode });
+            
             if (responseCode === InAppPurchases.IAPResponseCode.OK && Array.isArray(results)) {
+              console.log('✅ Purchase successful, processing results:', results.length);
+              
               for (const purchase of results) {
+                console.log('📦 Processing purchase:', purchase);
+                
                 // Başarılı satın alma
                 if (purchase.acknowledged === false || purchase.acknowledged === undefined) {
+                  console.log('💰 Handling successful purchase...');
                   await this.handleSuccessfulPurchase(purchase);
+                  
                   if (purchase.transactionId || purchase.purchaseToken) {
+                    console.log('✅ Finishing transaction...');
                     await InAppPurchases.finishTransactionAsync(purchase, true);
                   }
+                } else {
+                  console.log('⚠️ Purchase already acknowledged, skipping');
                 }
               }
             } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-              console.log('IAP purchase canceled by user');
+              console.log('❌ IAP purchase canceled by user');
             } else if (errorCode) {
-              console.error('IAP listener error:', errorCode);
+              console.error('❌ IAP listener error:', errorCode);
+            } else {
+              console.log('⚠️ Unknown purchase listener response:', { responseCode, errorCode });
             }
           } catch (listenerErr) {
-            console.error('Error in purchase listener:', listenerErr);
+            console.error('❌ Error in purchase listener:', listenerErr);
+            Alert.alert('Purchase Listener Error', listenerErr.message);
           }
         });
+        console.log('✅ Purchase listener set up successfully');
+      } else {
+        console.log('⚠️ Purchase listener already exists or setPurchaseListener not available');
       }
 
       this.isInitialized = true;
@@ -332,6 +350,17 @@ class IAPService {
       const result = await InAppPurchases.purchaseItemAsync(productId);
       console.log('✅ Purchase completed:', result);
       
+      // EXPO IAP'ta listener bazen çalışmaz, manuel olarak da kontrol edelim
+      if (result && result.results && Array.isArray(result.results)) {
+        console.log('🔄 Manual purchase processing (listener backup)');
+        for (const purchase of result.results) {
+          if (purchase.acknowledged === false || purchase.acknowledged === undefined) {
+            console.log('💰 Processing purchase manually...');
+            await this.handleSuccessfulPurchase(purchase);
+          }
+        }
+      }
+      
       // Asıl kredi ekleme purchase listener içinde yapılır
       return { productId, status: 'started', result };
       
@@ -404,17 +433,39 @@ class IAPService {
    */
   static async handleSuccessfulPurchase(purchase) {
     try {
+      console.log('🎉 handleSuccessfulPurchase called with:', purchase);
+      
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
+      console.log('📦 Package info for', purchase.productId, ':', packageInfo);
+      
       if (!packageInfo) {
-        console.error('Unknown product ID:', purchase.productId);
+        console.error('❌ Unknown product ID:', purchase.productId);
+        Alert.alert('Purchase Error', `Unknown product: ${purchase.productId}`);
         return;
       }
 
+      console.log('💰 Adding credits from real purchase:', packageInfo.credits);
+      
       // Kredi ekle
+      const currentCredits = await CreditService.getCredits();
+      console.log('📊 Credits before real purchase:', currentCredits);
+      
       await CreditService.addCredits(packageInfo.credits);
+      
+      const newCredits = await CreditService.getCredits();
+      console.log('📊 Credits after real purchase:', newCredits);
+      
+      // Success alert
+      Alert.alert('Real Purchase Success!', 
+        `Product: ${purchase.productId}\n` +
+        `Credits added: ${packageInfo.credits}\n` +
+        `Before: ${currentCredits}\n` +
+        `After: ${newCredits}`
+      );
 
     } catch (error) {
-      console.error('Error handling successful purchase:', error);
+      console.error('❌ Error handling successful purchase:', error);
+      Alert.alert('Purchase Handler Error', error.message);
     }
   }
 
