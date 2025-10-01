@@ -364,12 +364,36 @@ class IAPService {
     
     // Mock success
     const packageInfo = this.CREDIT_PACKAGES[productId];
+    console.log('📦 Package info for', productId, ':', packageInfo);
+    
     if (packageInfo) {
       console.log('💰 Adding', packageInfo.credits, 'credits (mock)');
-      await CreditService.addCredits(packageInfo.credits);
-      console.log('✅ Successfully added', packageInfo.credits, 'credits!');
+      
+      try {
+        const currentCredits = await CreditService.getCredits();
+        console.log('📊 Current credits before:', currentCredits);
+        
+        await CreditService.addCredits(packageInfo.credits);
+        
+        const newCredits = await CreditService.getCredits();
+        console.log('📊 Current credits after:', newCredits);
+        
+        // Debug alert ile göster
+        Alert.alert('Mock Purchase Debug', 
+          `Product: ${productId}\n` +
+          `Credits to add: ${packageInfo.credits}\n` +
+          `Before: ${currentCredits}\n` +
+          `After: ${newCredits}`
+        );
+        
+        console.log('✅ Successfully added', packageInfo.credits, 'credits!');
+      } catch (error) {
+        console.error('❌ Error adding credits:', error);
+        Alert.alert('Credit Error', `Failed to add credits: ${error.message}`);
+      }
     } else {
       console.error('❌ Product', productId, 'not found in CREDIT_PACKAGES');
+      Alert.alert('Product Error', `Product ${productId} not found in CREDIT_PACKAGES`);
     }
     
     return { productId, status: 'mock_completed' };

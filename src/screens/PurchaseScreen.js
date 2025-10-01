@@ -272,6 +272,9 @@ const PurchaseScreen = ({ navigation }) => {
             
             console.log('🎭 Mock Purchase - Reason:', reason);
             
+            // Geçici debug - hangi cihazda mock çalışıyor?
+            Alert.alert('Debug', `Mock Purchase - Reason: ${reason}`);
+            
             // Mock purchase for development/testing
             await new Promise(resolve => setTimeout(resolve, 2000));
             
@@ -294,6 +297,9 @@ const PurchaseScreen = ({ navigation }) => {
           }
           
           console.log('💳 Starting real IAP purchase for:', packageInfo.id);
+          
+          // Geçici debug - hangi cihazda gerçek IAP çalışıyor?
+          Alert.alert('Debug', `Real IAP starting for ${packageInfo.id}`);
           
           const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
           
@@ -375,9 +381,21 @@ const PurchaseScreen = ({ navigation }) => {
       setLoading(false);
       setSelectedPackage(null);
       
+      // Kredileri hemen yenile ve debug ile göster
       setTimeout(async () => {
+        console.log('🔄 Refreshing credits...');
+        const oldCredits = currentCredits;
         await loadCurrentCredits();
-      }, 2000);
+        const newCredits = await CreditService.getCredits();
+        console.log('📊 Credit refresh - Old:', oldCredits, 'New:', newCredits);
+        
+        // Debug alert ile göster
+        Alert.alert('Credit Refresh Debug', 
+          `Old Credits: ${oldCredits}\n` +
+          `New Credits: ${newCredits}\n` +
+          `Difference: ${newCredits - oldCredits}`
+        );
+      }, 1000);
     }
   };
 

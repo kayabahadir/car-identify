@@ -150,18 +150,28 @@ class CreditService {
    */
   static async addCredits(amount, source = 'purchase') {
     try {
+      console.log(`💰 CreditService.addCredits called - Amount: ${amount}, Source: ${source}`);
+      
       const currentCredits = await this.getCredits();
+      console.log(`📊 Current credits from storage: ${currentCredits}`);
+      
       const newCredits = currentCredits + amount;
+      console.log(`📊 New credits calculated: ${newCredits}`);
       
       await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
-      await this.logCreditHistory('credits_added', amount, `${source} ile ${amount} kredi eklendi`);
+      console.log(`💾 Credits saved to AsyncStorage: ${newCredits}`);
       
-      if (__DEV__) {
-        console.log(`✅ ${amount} credits added. Total: ${newCredits}`);
-      }
+      await this.logCreditHistory('credits_added', amount, `${source} ile ${amount} kredi eklendi`);
+      console.log(`📝 Credit history logged`);
+      
+      // Verify save
+      const verifyCredits = await AsyncStorage.getItem(this.STORAGE_KEYS.USER_CREDITS);
+      console.log(`✅ Verification - Credits in storage: ${verifyCredits}`);
+      
+      console.log(`✅ ${amount} credits added successfully. Total: ${newCredits}`);
       return newCredits;
     } catch (error) {
-      console.error('Error adding credits:', error);
+      console.error('❌ Error adding credits:', error);
       throw error;
     }
   }
