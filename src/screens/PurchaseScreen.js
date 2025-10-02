@@ -297,24 +297,16 @@ const PurchaseScreen = ({ navigation }) => {
           
           console.log('💳 Starting real IAP purchase for:', packageInfo.id);
           
-          // Real IAP purchase starting
-          
+          // Real IAP purchase starting - sadece Apple ödeme ekranını aç
           const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
           
-          console.log('✅ Purchase result:', purchaseResult);
+          console.log('✅ Purchase initiated:', purchaseResult);
           
           await FirstTimeService.markFreeAnalysisUsed();
           
-          Alert.alert(
-            `🎉 ${t('purchaseSuccess')}`,
-            `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-            [{ 
-              text: t('startAnalyzing'), 
-              onPress: () => {
-                navigation.navigate('Home', { forceRefresh: Date.now() });
-              }
-            }]
-          );
+          // Success mesajı artık IAP listener içinde gösteriliyor
+          // Burada sadece purchase başlatıldığını log'la
+          console.log('🛒 Purchase process initiated, waiting for completion...');
           
         } catch (purchaseError) {
           if (purchaseError.message?.includes('iptal') || 

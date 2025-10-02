@@ -49,10 +49,8 @@ class IAPService {
    */
   static async initialize() {
     try {
-      if (this.isInitialized) {
-        console.log('IAP already initialized');
-        return true;
-      }
+      // Consumable IAP için her seferinde listener'ı yenile
+      console.log('🔄 Initializing IAP (listener refresh for consumable)...');
 
       // Mock mode'da direkt initialize
       if (!InAppPurchases) {
@@ -61,12 +59,15 @@ class IAPService {
         return true;
       }
       
-      console.log('Connecting to IAP service...');
-      // IAP sistemini başlat
-      await InAppPurchases.connectAsync();
+      // IAP sistemini başlat (sadece ilk kez)
+      if (!this.isInitialized) {
+        console.log('Connecting to IAP service...');
+        await InAppPurchases.connectAsync();
+        this.isInitialized = true;
+      }
 
-      // Satın alma listener'ı (bir kez) kur
-      if (!this.purchaseListener && typeof InAppPurchases.setPurchaseListener === 'function') {
+      // Satın alma listener'ını her seferinde yeniden kur (consumable IAP için gerekli)
+      if (typeof InAppPurchases.setPurchaseListener === 'function') {
         console.log('🎧 Setting up purchase listener...');
         this.purchaseListener = InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
           try {
@@ -104,10 +105,9 @@ class IAPService {
         });
         console.log('✅ Purchase listener set up successfully');
       } else {
-        console.log('⚠️ Purchase listener already exists or setPurchaseListener not available');
+        console.log('⚠️ setPurchaseListener not available');
       }
 
-      this.isInitialized = true;
       console.log('IAP service initialized successfully');
       return true;
       
@@ -332,10 +332,9 @@ class IAPService {
     try {
       console.log('🛒 Starting purchase for product:', productId);
       
-      if (!this.isInitialized) {
-        console.log('🔄 Initializing IAP...');
-        await this.initialize();
-      }
+      // Her purchase'da listener'ı yeniden kur (consumable IAP için kritik)
+      console.log('🔄 Re-initializing IAP for fresh listener...');
+      await this.initialize();
 
       // Mock mode'da simulated purchase
       if (!InAppPurchases) {
@@ -345,53 +344,15 @@ class IAPService {
       
       console.log('💳 Starting real IAP purchase - Platform:', Platform.OS, 'Product:', productId);
       
-      // Purchase işlemini başlat
+      // Purchase işlemini başlat - sadece Apple ödeme ekranını aç
       const result = await InAppPurchases.purchaseItemAsync(productId);
-      console.log('✅ Purchase completed:', result);
+      console.log('✅ Purchase dialog completed:', result);
       
-      // Purchase result'ı işle
+      // ÖNEMLİ: Burada manuel processing YAPMA!
+      // Purchase listener otomatik olarak çalışacak ve kredileri ekleyecek
+      // Manuel processing sadece listener çalışmazsa gerekli
       
-      // EXPO IAP'ta listener bazen çalışmaz, manuel olarak da kontrol edelim
-      if (result && result.results && Array.isArray(result.results)) {
-        console.log('🔄 Manual purchase processing (listener backup)');
-        for (const purchase of result.results) {
-          if (purchase.acknowledged === false || purchase.acknowledged === undefined) {
-            console.log('💰 Processing purchase manually...');
-            await this.handleSuccessfulPurchase(purchase);
-          }
-        }
-      } else {
-        // Alternatif format kontrol et
-        console.log('🔍 Checking alternative result formats...');
-        
-        // Bazen result direkt purchase objesi olabilir
-        if (result && result.productId) {
-          console.log('💰 Processing direct purchase result...');
-          await this.handleSuccessfulPurchase(result);
-        }
-        // Bazen result.responseCode === 0 olabilir
-        else if (result && result.responseCode === 0) {
-          console.log('💰 Processing responseCode=0 result...');
-          // Basit purchase objesi oluştur
-          const purchase = {
-            productId: productId,
-            acknowledged: false
-          };
-          await this.handleSuccessfulPurchase(purchase);
-        }
-        // Son çare: Apple ödeme ekranı açıldıysa başarılı kabul et
-        else {
-          console.log('💰 Fallback: Assuming successful purchase...');
-          const purchase = {
-            productId: productId,
-            acknowledged: false
-          };
-          await this.handleSuccessfulPurchase(purchase);
-        }
-      }
-      
-      // Asıl kredi ekleme purchase listener içinde yapılır
-      return { productId, status: 'started', result };
+      return { productId, status: 'purchase_initiated', result };
       
     } catch (error) {
       console.error('❌ Purchase failed:', error);
@@ -476,7 +437,18 @@ class IAPService {
       const newCredits = await CreditService.getCredits();
       console.log('📊 Credits after real purchase:', newCredits);
       
-      // Real purchase completed successfully
+      // Başarılı satın alma mesajını göster (listener içinden)
+      Alert.alert(
+        '🎉 Purchase Successful!',
+        `${packageInfo.credits} credits have been added to your account.`,
+        [{ 
+          text: 'Continue', 
+          onPress: () => {
+            // Navigation burada mümkün değil, global event gönderebiliriz
+            console.log('✅ Purchase completed successfully');
+          }
+        }]
+      );
 
     } catch (error) {
       console.error('❌ Error handling successful purchase:', error);
