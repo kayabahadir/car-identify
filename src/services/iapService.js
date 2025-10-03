@@ -24,6 +24,7 @@ class IAPService {
   static products = [];
   static purchaseListener = null;
   static isCheckingAvailability = false; // Promise guard
+  static lastPurchaseAttempt = null; // Son purchase attempt'i takip et
 
   // Receipt validation endpoint
   static RECEIPT_VALIDATION_URL = process.env.EXPO_PUBLIC_API_BASE_URL 
@@ -93,18 +94,19 @@ class IAPService {
               errorCode 
             });
             
-            // Başarılı purchase, restore veya sandbox durumları
-            if ((responseCode === InAppPurchases.IAPResponseCode.OK || 
-                 responseCode === InAppPurchases.IAPResponseCode.DEFERRED ||
-                 responseCode === 0) && 
-                Array.isArray(results)) {
-              console.log('✅ Purchase/Restore/Sandbox successful, processing results:', results.length);
+            // TÜM olası durumları handle et - Apple'ın restore davranışı için
+            if (Array.isArray(results) && results.length > 0) {
+              console.log('✅ Processing purchase results (any response code):', {
+                responseCode,
+                responseCodeName: this.getResponseCodeName(responseCode),
+                resultsCount: results.length
+              });
               
               for (const purchase of results) {
                 console.log('📦 Processing purchase/restore:', purchase);
                 
-                // Hem yeni purchase hem de restore edilen purchase'ları handle et
-                console.log('💰 Handling purchase (new or restored)...');
+                // Her durumda purchase'ı handle et (consumable IAP mantığı)
+                console.log('💰 Handling purchase (consumable - always add credits)...');
                 await this.handleSuccessfulPurchase(purchase);
                 
                 // Transaction'ı finish et
@@ -118,11 +120,37 @@ class IAPService {
             } else if (errorCode) {
               console.error('❌ IAP listener error:', errorCode);
             } else {
-              console.log('⚠️ Unknown purchase listener response:', { 
+              console.log('⚠️ Purchase listener - no results but response received:', { 
                 responseCode, 
                 responseCodeName: this.getResponseCodeName(responseCode),
-                errorCode 
+                errorCode,
+                results
               });
+              
+              // Eğer Apple ödeme ekranı açıldıysa ama results yoksa, fallback olarak kredi ekle
+              if (responseCode === InAppPurchases.IAPResponseCode.OK || 
+                  responseCode === InAppPurchases.IAPResponseCode.DEFERRED ||
+                  responseCode === 0) {
+                console.log('🔄 Fallback: Adding credits without purchase object');
+                
+                // Son purchase attempt'i kullan
+                if (this.lastPurchaseAttempt && this.lastPurchaseAttempt.productId) {
+                  console.log('🔄 Using last purchase attempt:', this.lastPurchaseAttempt);
+                  
+                  const fallbackPurchase = {
+                    productId: this.lastPurchaseAttempt.productId,
+                    acknowledged: false,
+                    purchaseState: 'fallback_restore'
+                  };
+                  
+                  await this.handleSuccessfulPurchase(fallbackPurchase);
+                  
+                  // Last attempt'i temizle
+                  this.lastPurchaseAttempt = null;
+                } else {
+                  console.log('⚠️ No last purchase attempt found for fallback');
+                }
+              }
             }
           } catch (listenerErr) {
             console.error('❌ Error in purchase listener:', listenerErr);
@@ -368,6 +396,12 @@ class IAPService {
       }
       
       console.log('💳 Starting real IAP purchase - Platform:', Platform.OS, 'Product:', productId);
+      
+      // Son purchase attempt'i kaydet (fallback için)
+      this.lastPurchaseAttempt = {
+        productId,
+        timestamp: Date.now()
+      };
       
       // Purchase işlemini başlat - Apple ödeme ekranını aç
       const result = await InAppPurchases.purchaseItemAsync(productId);
