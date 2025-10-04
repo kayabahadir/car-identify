@@ -31,15 +31,20 @@ class IAPService {
     ? `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/validate-receipt`
     : null;
 
-  // IAP ürün ID'leri - CONSUMABLE products (tekrar satın alınabilir)
+  // IAP ürün ID'leri - YENİ CONSUMABLE products (restore davranışını önlemek için)
   static PRODUCT_IDS = {
-    CREDITS_10: 'com.caridentify.app.credits.pack10',
-    CREDITS_50: 'com.caridentify.app.credits.pack50', 
-    CREDITS_200: 'com.caridentify.app.credits.pack200'
+    CREDITS_10: 'com.caridentify.app.credits.consumable.pack10',
+    CREDITS_50: 'com.caridentify.app.credits.consumable.pack50', 
+    CREDITS_200: 'com.caridentify.app.credits.consumable.pack200'
   };
 
-  // Kredi paketleri mapping
+  // Kredi paketleri mapping - YENİ CONSUMABLE IDs
   static CREDIT_PACKAGES = {
+    'com.caridentify.app.credits.consumable.pack10': { credits: 10, price: 1.99 },
+    'com.caridentify.app.credits.consumable.pack50': { credits: 50, price: 6.99 },
+    'com.caridentify.app.credits.consumable.pack200': { credits: 200, price: 19.99 },
+    
+    // Eski ID'ler için backward compatibility (geçiş dönemi için)
     'com.caridentify.app.credits.pack10': { credits: 10, price: 1.99 },
     'com.caridentify.app.credits.pack50': { credits: 50, price: 6.99 },
     'com.caridentify.app.credits.pack200': { credits: 200, price: 19.99 }
@@ -58,6 +63,28 @@ class IAPService {
       }
     }
     return `UNKNOWN_${responseCode}`;
+  }
+
+  /**
+   * User'ın purchase'ı cancel edip etmediğini kontrol eder
+   */
+  static isUserCanceled(result) {
+    if (!result) return false;
+    
+    // User cancel durumları
+    if (result.responseCode === InAppPurchases?.IAPResponseCode?.USER_CANCELED) {
+      return true;
+    }
+    
+    // Error message'da cancel ifadesi varsa
+    if (result.errorCode || (result.message && 
+        (result.message.includes('cancel') || 
+         result.message.includes('cancelled') ||
+         result.message.includes('iptal')))) {
+      return true;
+    }
+    
+    return false;
   }
 
   /**
@@ -404,12 +431,23 @@ class IAPService {
       };
       
       // Purchase işlemini başlat - Apple ödeme ekranını aç
+      console.log('🚀 CONSUMABLE IAP: Each purchase should be treated as NEW purchase');
+      console.log('🚀 No restore behavior should occur for consumable products');
+      
       const result = await InAppPurchases.purchaseItemAsync(productId);
       console.log('✅ Purchase dialog completed:', result);
       
-      // Eğer result'ta direkt purchase bilgisi varsa (restore/sandbox durumu) handle et
+      // CONSUMABLE IAP: Apple ödeme ekranı açıldıysa, her durumda yeni purchase olarak işle
+      console.log('💡 CONSUMABLE LOGIC: Treating this as a new purchase regardless of Apple response');
+      
+      // ÖNEMLİ: Apple ödeme ekranı açıldıysa (user cancel etmemişse) her durumda kredi ekle
+      // Bu consumable IAP mantığı - "daha önce satın alınmış" olsa bile yeni kredi ekle
+      
+      let purchaseProcessed = false;
+      
+      // Önce normal result processing'i dene
       if (result && result.results && Array.isArray(result.results) && result.results.length > 0) {
-        console.log('🔄 Processing immediate purchase result (sandbox/restore)');
+        console.log('🔄 Processing immediate purchase result');
         for (const purchase of result.results) {
           await this.handleSuccessfulPurchase(purchase);
           
@@ -418,18 +456,30 @@ class IAPService {
             await InAppPurchases.finishTransactionAsync(purchase, true);
           }
         }
-      } else if (result && (result.responseCode === 0 || result.responseCode === InAppPurchases.IAPResponseCode.OK)) {
-        // Sandbox'ta bazen result.results boş gelir ama responseCode OK olur
-        console.log('🔄 Sandbox success without results - simulating purchase');
-        const simulatedPurchase = {
-          productId: productId,
-          acknowledged: false,
-          purchaseState: 'purchased'
-        };
-        await this.handleSuccessfulPurchase(simulatedPurchase);
+        purchaseProcessed = true;
       }
       
-      return { productId, status: 'purchase_initiated', result };
+      // Eğer result processing olmadıysa ve user cancel etmemişse, force credit addition
+      if (!purchaseProcessed && result && !this.isUserCanceled(result)) {
+        console.log('🔄 Force adding credits - Apple payment screen was shown');
+        
+        // Simulated purchase oluştur ve kredileri ekle
+        const forcedPurchase = {
+          productId: productId,
+          acknowledged: false,
+          purchaseState: 'forced_consumable',
+          forceProcessed: true
+        };
+        
+        await this.handleSuccessfulPurchase(forcedPurchase);
+        purchaseProcessed = true;
+      }
+      
+      return { 
+        productId, 
+        status: purchaseProcessed ? 'purchase_completed' : 'purchase_initiated', 
+        result 
+      };
       
     } catch (error) {
       console.error('❌ Purchase failed:', error);
@@ -539,8 +589,12 @@ class IAPService {
   /**
    * CONSUMABLE IAP'lar restore edilmez!
    * Apple Guidelines 3.1.1: Consumable products cannot be restored
+   * Bu fonksiyon asla çağrılmamalı - consumable ürünlerde restore yoktur
    */
   static async restorePurchases() {
+    console.log('⚠️ restorePurchases called but CONSUMABLE products cannot be restored!');
+    console.log('⚠️ This should never happen with proper consumable IAP setup');
+    
     // Consumable IAP'lar için restore işlemi yapılmaz
     // Apple'ın policy'sine göre consumable ürünler restore edilemez
     return Promise.resolve();
