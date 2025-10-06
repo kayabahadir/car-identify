@@ -31,7 +31,7 @@ class IAPService {
     ? `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/validate-receipt`
     : null;
 
-  // IAP ürün ID'leri - YENİ CONSUMABLE products (restore davranışını önlemek için)
+  // IAP ürün ID'leri - YENİ CONSUMABLE products
   static PRODUCT_IDS = {
     CREDITS_10: 'com.caridentify.app.credits.consumable.pack10',
     CREDITS_50: 'com.caridentify.app.credits.consumable.pack50', 
@@ -334,11 +334,11 @@ class IAPService {
   }
 
   /**
-   * Mevcut ürünleri yükler
+   * Mevcut ürünleri yükler - Yeni consumable products
    */
   static async loadProducts() {
     try {
-      console.log('🛍️ Loading IAP products...');
+      console.log('🛍️ Loading new consumable IAP products...');
       
       // Mock mode'da products yüklemeyeceğiz
       if (!InAppPurchases) {
@@ -348,10 +348,10 @@ class IAPService {
       }
       
       const productIds = Object.values(this.PRODUCT_IDS);
-      console.log('📦 Product IDs to load:', productIds);
+      console.log('📦 Loading new consumable product IDs:', productIds);
       
       const result = await InAppPurchases.getProductsAsync(productIds);
-      console.log('📊 getProductsAsync raw result:', result);
+      console.log('📊 getProductsAsync result:', result);
       
       const products = result?.results || [];
       this.products = products;
@@ -365,11 +365,10 @@ class IAPService {
       })));
       
       if (products.length === 0) {
-        console.log('⚠️ No products loaded! Possible reasons:');
-        console.log('- Products not configured in App Store Connect');
-        console.log('- Products not approved');
-        console.log('- Bundle ID mismatch');
-        console.log('- IAP not enabled for this app');
+        console.log('⚠️ New consumable products not found! Status: Waiting for Apple approval');
+        console.log('📋 Expected products:', productIds);
+        console.log('💡 These products are probably "Waiting for Review" in App Store Connect');
+        console.log('💡 Once approved by Apple, they will appear here automatically');
       }
       
       return this.products;
@@ -577,6 +576,8 @@ class IAPService {
           text: 'Continue', 
           onPress: () => {
             console.log('✅ Purchase completed successfully');
+            // Ana sayfaya dön ve kredileri yenile
+            this.navigateToHome?.();
           }
         }]
       );

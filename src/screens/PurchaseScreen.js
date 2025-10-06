@@ -165,9 +165,19 @@ const PurchaseScreen = ({ navigation }) => {
     initializeIAP();
     loadIAPProducts();
     
+    // IAP service'e navigation callback'ini set et
+    IAPService.navigateToHome = () => {
+      navigation.navigate('Home', { forceRefresh: Date.now() });
+    };
+    
     navigation.setOptions({
       headerShown: false,
     });
+
+    // Cleanup function
+    return () => {
+      IAPService.navigateToHome = null;
+    };
   }, [navigation]);
 
   const initializeIAP = async () => {
@@ -220,10 +230,11 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const setFallbackProducts = () => {
+    // Yeni consumable ürünler için fallback fiyatlar
     const fallbackProducts = [
-      { productId: 'com.caridentify.app.credits.pack10', price: '₺99,99' },
-      { productId: 'com.caridentify.app.credits.pack50', price: '₺289,99' },
-      { productId: 'com.caridentify.app.credits.pack200', price: '₺829,99' }
+      { productId: 'com.caridentify.app.credits.consumable.pack10', price: '₺99,99' },
+      { productId: 'com.caridentify.app.credits.consumable.pack50', price: '₺289,99' },
+      { productId: 'com.caridentify.app.credits.consumable.pack200', price: '₺829,99' }
     ];
     setIapProducts(fallbackProducts);
   };
