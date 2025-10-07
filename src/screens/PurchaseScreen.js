@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
-import IAPService from '../services/iapService';
+import CleanIAPService from '../services/iapServiceClean';
 import FirstTimeService from '../services/firstTimeService';
 import DebugService from '../services/debugService';
 
@@ -92,10 +92,10 @@ const PurchaseScreen = ({ navigation }) => {
     }
   };
 
-  // Base package bilgileri - CONSUMABLE IAP ID'leri
+  // Base package bilgileri - YENİ CONSUMABLE IAP ID'leri
   const basePackages = React.useMemo(() => [
     {
-      id: 'com.caridentify.app.credits.pack10',
+      id: 'com.caridentify.app.credits.consumable.pack10',
       credits: 10,
       title: language === 'tr' ? 'Başlangıç' : 'Starter',
       subtitle: language === 'tr' ? 'Küçük projeler için' : 'For small projects',
@@ -103,7 +103,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 0
     },
     {
-      id: 'com.caridentify.app.credits.pack50',
+      id: 'com.caridentify.app.credits.consumable.pack50',
       credits: 50,
       title: language === 'tr' ? 'Popüler' : 'Popular',
       subtitle: language === 'tr' ? 'En çok tercih edilen' : 'Most preferred',
@@ -111,7 +111,7 @@ const PurchaseScreen = ({ navigation }) => {
       savings: 30
     },
     {
-      id: 'com.caridentify.app.credits.pack200',
+      id: 'com.caridentify.app.credits.consumable.pack200',
       credits: 200,
       title: language === 'tr' ? 'Premium' : 'Premium',
       subtitle: language === 'tr' ? 'Büyük projeler için' : 'For large projects',
@@ -162,13 +162,12 @@ const PurchaseScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadCurrentCredits();
-    initializeIAP();
     loadIAPProducts();
     
-    // IAP service'e navigation callback'ini set et
-    IAPService.navigateToHome = () => {
+    // Navigation callback set et
+    CleanIAPService.setNavigationCallback(() => {
       navigation.navigate('Home', { forceRefresh: Date.now() });
-    };
+    });
     
     navigation.setOptions({
       headerShown: false,
@@ -176,22 +175,10 @@ const PurchaseScreen = ({ navigation }) => {
 
     // Cleanup function
     return () => {
-      IAPService.navigateToHome = null;
+      CleanIAPService.setNavigationCallback(null);
     };
   }, [navigation]);
 
-  const initializeIAP = async () => {
-    try {
-      console.log('Initializing IAP...');
-      const available = await IAPService.isAvailable();
-      console.log('IAP available:', available);
-      if (!available) {
-        console.log('IAP not available - will use fallback products');
-      }
-    } catch (error) {
-      console.error('Error initializing IAP:', error);
-    }
-  };
 
   const loadCurrentCredits = async () => {
     try {
@@ -205,22 +192,17 @@ const PurchaseScreen = ({ navigation }) => {
   const loadIAPProducts = async () => {
     try {
       console.log('Loading IAP products...');
-      const available = await IAPService.isAvailable();
-      console.log('IAP available for products:', available);
+      
+      // Clean IAP service ile ürünleri yükle
+      await CleanIAPService.initialize();
+      const products = await CleanIAPService.getProducts();
+      
+      console.log('Loaded products:', products.length);
 
-      if (available) {
-        await IAPService.initialize();
-        const products = await IAPService.getProducts();
-        console.log('Loaded IAP products:', products);
-
-        if (products && products.length > 0) {
-          setIapProducts(products);
-        } else {
-          console.log('No IAP products found, using fallback');
-          setFallbackProducts();
-        }
+      if (products && products.length > 0) {
+        setIapProducts(products);
       } else {
-        console.log('IAP not available, using fallback products');
+        console.log('No products found, using fallback');
         setFallbackProducts();
       }
     } catch (error) {
@@ -230,167 +212,54 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const setFallbackProducts = () => {
-    // Yeni consumable ürünler için fallback fiyatlar
+    // Yeni consumable ürünler için fallback fiyatlar - ID'ler eşleşmeli
     const fallbackProducts = [
       { productId: 'com.caridentify.app.credits.consumable.pack10', price: '₺99,99' },
       { productId: 'com.caridentify.app.credits.consumable.pack50', price: '₺289,99' },
       { productId: 'com.caridentify.app.credits.consumable.pack200', price: '₺829,99' }
     ];
+    console.log('📦 Setting fallback products with IDs:', fallbackProducts.map(p => p.productId));
     setIapProducts(fallbackProducts);
   };
 
   const handlePurchase = async (packageInfo) => {
+    if (__DEV__) {
+      console.log('🎯 handlePurchase called with:', packageInfo);
+    }
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
-      console.log('🛒 Starting purchase for:', packageInfo.id);
-      console.log('📦 InAppPurchases loaded:', !!InAppPurchases);
+      // Basit purchase akışı
+      const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
-      const iapAvailable = await IAPService.isAvailable();
-      console.log('✅ IAP available:', iapAvailable);
+      // FirstTime service'i işaretle
+      await FirstTimeService.markFreeAnalysisUsed();
       
-      // SDK 54'te isAvailableAsync kaldırıldı, modül yüklüyse gerçek IAP'ı deneyelim
-      const shouldTryIAP = InAppPurchases !== null;
-      
-      console.log('🎯 Should try IAP:', shouldTryIAP, 'Availability:', iapAvailable);
-      
-      if (shouldTryIAP) {
-        try {
-          // Environment bilgilerini topla
-          const isDevice = Constants.isDevice ?? true; // undefined ise true kabul et
-          const isSimulator = Platform.OS === 'ios' && !isDevice;
-          const isExpoGo = Constants.appOwnership === 'expo';
-          
-          console.log('🔍 Environment Check:', {
-            platform: Platform.OS,
-            device: isDevice,
-            simulator: isSimulator,
-            appOwnership: Constants.appOwnership,
-            expoGo: isExpoGo,
-            moduleLoaded: !!InAppPurchases,
-            iapAvailable
-          });
-          
-          // TestFlight'ta gerçek IAP'ı denememiz gerekiyor
-          // Sadece modül yoksa mock kullan, device detection'a güvenme
-          const shouldUseMock = !InAppPurchases;
-          
-          if (shouldUseMock) {
-            const reason = !InAppPurchases ? 'Module not available' : 
-                         isSimulator ? 'Running on simulator' : 
-                         'Running in Expo Go';
-            
-            console.log('🎭 Mock Purchase - Reason:', reason);
-            
-            // Mock purchase starting
-            
-            // Mock purchase for development/testing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const packageCredits = IAPService.CREDIT_PACKAGES[packageInfo.id];
-            if (packageCredits) {
-              await CreditService.addCredits(packageCredits.credits);
-            }
-            
-            await FirstTimeService.markFreeAnalysisUsed();
-            
-            Alert.alert(
-              `🎉 ${t('purchaseSuccess')} (Mock - ${reason})`,
-              `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-              [{ 
-                text: t('startAnalyzing'), 
-                onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
-              }]
-            );
-            return;
-          }
-          
-          console.log('💳 Starting real IAP purchase for:', packageInfo.id);
-          
-          // Real IAP purchase starting - sadece Apple ödeme ekranını aç
-          const purchaseResult = await IAPService.purchaseProduct(packageInfo.id);
-          
-          console.log('✅ Purchase initiated:', purchaseResult);
-          
-          await FirstTimeService.markFreeAnalysisUsed();
-          
-          // Success mesajı artık IAP listener içinde gösteriliyor
-          // Burada sadece purchase başlatıldığını log'la
-          console.log('🛒 Purchase process initiated, waiting for completion...');
-          
-        } catch (purchaseError) {
-          if (purchaseError.message?.includes('iptal') || 
-              purchaseError.message?.includes('cancel') ||
-              purchaseError.message?.includes('cancelled')) {
-            return;
-          }
-          throw purchaseError;
-        }
-        } else {
-          console.log('❌ IAP not available - running diagnostics');
-          try {
-            const diag = await IAPService.diagnose();
-            console.log('🔍 Full diagnostics:', diag);
-            
-            Alert.alert(
-              'IAP Debug Info',
-              `Satın almalar şu anda kullanılamıyor.\n\n` +
-              `📱 Platform: ${Platform.OS}\n` +
-              `🔧 Initialized: ${String(diag.initialized)}\n` +
-              `📦 Module: ${String(diag.moduleLoaded)}\n` +
-              `✅ Available: ${String(diag.isAvailable)}\n` +
-              `🛍️ Products: ${diag.productsCount ?? 'n/a'}\n` +
-              `📋 Bundle: ${diag.bundleIdentifier}\n` +
-              `🔗 Device: ${Constants.isDevice}\n` +
-              `🏗️ Ownership: ${Constants.appOwnership}\n` +
-              (diag.lastError ? `❌ Error: ${diag.lastError}` : ''),
-              [
-                { text: 'Tamam' },
-                { 
-                  text: 'Test Mock Purchase', 
-                  onPress: async () => {
-                    // Force mock purchase for testing
-                    console.log('🎭 Forcing mock purchase for testing...');
-                    const packageCredits = IAPService.CREDIT_PACKAGES[packageInfo.id];
-                    if (packageCredits) {
-                      await CreditService.addCredits(packageCredits.credits);
-                      Alert.alert('Test Başarılı', `${packageCredits.credits} kredi eklendi (Test)`);
-                    }
-                  }
-                }
-              ]
-            );
-          } catch (e) {
-            console.error('❌ Error during diagnostics:', e);
-            Alert.alert(
-              'Debug Error',
-              `Diagnostics failed: ${e.message}\n\nThis suggests a deeper IAP integration issue.`
-            );
-          }
-        }
+      if (__DEV__) {
+        console.log('✅ Purchase process completed');
+      }
 
     } catch (error) {
-      console.error('Purchase error:', error);
+      if (__DEV__) {
+        console.error('❌ Purchase error:', error);
+      }
       
-      Alert.alert(
-        'Satın Alma Hatası',
-        'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
-        [{ text: 'Tamam' }]
-      );
+      // User cancel etmediyse error göster
+      if (!error.message?.includes('cancel')) {
+        Alert.alert(
+          'Satın Alma Hatası',
+          'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
+          [{ text: 'Tamam' }]
+        );
+      }
     } finally {
       setLoading(false);
       setSelectedPackage(null);
       
-      // Kredileri hemen yenile ve debug ile göster
+      // Kredileri yenile
       setTimeout(async () => {
-        console.log('🔄 Refreshing credits...');
-        const oldCredits = currentCredits;
         await loadCurrentCredits();
-        const newCredits = await CreditService.getCredits();
-        console.log('📊 Credit refresh - Old:', oldCredits, 'New:', newCredits);
-        
-        // Credits refreshed
       }, 1000);
     }
   };

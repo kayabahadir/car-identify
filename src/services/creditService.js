@@ -157,11 +157,13 @@ class CreditService {
       await this.logCreditHistory('credits_added', amount, `${source} ile ${amount} kredi eklendi`);
       
       if (__DEV__) {
-        console.log(`✅ ${amount} credits added. Total: ${newCredits}`);
+        console.log(`✅ ${amount} credits added successfully. Total: ${newCredits}`);
       }
       return newCredits;
     } catch (error) {
-      console.error('Error adding credits:', error);
+      if (__DEV__) {
+        console.error('❌ Error adding credits:', error);
+      }
       throw error;
     }
   }
