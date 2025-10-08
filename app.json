@@ -4,7 +4,7 @@
     "slug": "car-identify",
     "version": "1.0.8",
     "orientation": "portrait",
-    "sdkVersion": "53.0.0",
+    "sdkVersion": "51.0.0",
     "platforms": [
       "ios",
       "android",
@@ -21,9 +21,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
       "buildNumber": "17",
-      "capabilities": [
-        "inAppPurchase"
-      ],
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera to capture car images for identification.",
         "NSPhotoLibraryUsageDescription": "This app accesses photo library to select car images for identification.",
