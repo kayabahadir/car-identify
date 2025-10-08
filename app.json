@@ -68,8 +68,7 @@
         {
           "cameraPermission": "This app uses camera to capture car images for identification."
         }
-      ],
-      "expo-in-app-purchases"
+      ]
     ]
   }
 }

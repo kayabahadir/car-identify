@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
-import CleanIAPService from '../services/iapServiceClean';
+import RNIAPService from '../services/iapServiceRN';
 import FirstTimeService from '../services/firstTimeService';
 import DebugService from '../services/debugService';
 
@@ -165,7 +165,7 @@ const PurchaseScreen = ({ navigation }) => {
     loadIAPProducts();
     
     // Navigation callback set et
-    CleanIAPService.setNavigationCallback(() => {
+    RNIAPService.setNavigationCallback(() => {
       navigation.navigate('Home', { forceRefresh: Date.now() });
     });
     
@@ -175,7 +175,8 @@ const PurchaseScreen = ({ navigation }) => {
 
     // Cleanup function
     return () => {
-      CleanIAPService.setNavigationCallback(null);
+      RNIAPService.setNavigationCallback(null);
+      RNIAPService.cleanup();
     };
   }, [navigation]);
 
@@ -193,9 +194,9 @@ const PurchaseScreen = ({ navigation }) => {
     try {
       console.log('Loading IAP products...');
       
-      // Clean IAP service ile ürünleri yükle
-      await CleanIAPService.initialize();
-      const products = await CleanIAPService.getProducts();
+      // React Native IAP service ile ürünleri yükle
+      await RNIAPService.initialize();
+      const products = await RNIAPService.getProducts();
       
       console.log('Loaded products:', products.length);
 
@@ -231,7 +232,7 @@ const PurchaseScreen = ({ navigation }) => {
 
     try {
       // Basit purchase akışı
-      const result = await CleanIAPService.purchaseProduct(packageInfo.id);
+      const result = await RNIAPService.purchaseProduct(packageInfo.id);
       
       // FirstTime service'i işaretle
       await FirstTimeService.markFreeAnalysisUsed();
