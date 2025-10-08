@@ -2,7 +2,10 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// TypeScript extension hatası için - sadece gerekli olanı ekle
-config.resolver.sourceExts.push('ts', 'tsx');
+// TypeScript ve JSX desteği
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'ts', 'tsx'];
+
+// Asset extensions
+config.resolver.assetExts = [...config.resolver.assetExts, 'bin'];
 
 module.exports = config;

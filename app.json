@@ -4,7 +4,6 @@
     "slug": "car-identify",
     "version": "1.0.8",
     "orientation": "portrait",
-    "sdkVersion": "54.0.0",
     "platforms": [
       "ios",
       "android",
