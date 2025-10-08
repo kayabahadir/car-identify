@@ -4,7 +4,8 @@ import { Alert } from 'react-native';
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
 try {
-  InAppPurchases = require('expo-in-app-purchases');
+  const iapModule = require('expo-in-app-purchases');
+  InAppPurchases = iapModule.default || iapModule;
   console.log('✅ InAppPurchases module loaded successfully');
 } catch (error) {
   console.error('❌ InAppPurchases module load error:', error);
