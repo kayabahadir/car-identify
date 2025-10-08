@@ -39,31 +39,33 @@ class CleanIAPService {
    */
   static async initialize() {
     try {
-      if (this.isInitialized) {
-        return true;
-      }
-
       if (!InAppPurchases) {
         console.log('⚠️ IAP Mock mode - initialized');
         this.isInitialized = true;
         return true;
       }
 
+      // HER SEFERINDE yeniden initialize et (TestFlight için)
+      console.log('🔄 Re-initializing IAP service...');
+
       // IAP'ı bağla
       await InAppPurchases.connectAsync();
       
-      // Purchase listener kur
+      // Purchase listener kur - HER SEFERINDE yeniden
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
         
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
           for (const purchase of results) {
+            console.log('🎯 Processing purchase:', purchase);
             await this.handlePurchaseSuccess(purchase);
           }
         } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
           console.log('❌ User canceled purchase');
+        } else if (responseCode === InAppPurchases.IAPResponseCode.DEFERRED) {
+          console.log('⏳ Purchase deferred');
         } else {
-          console.log('⚠️ Purchase listener - other response:', responseCode);
+          console.log('⚠️ Purchase listener - other response:', responseCode, errorCode);
         }
       });
 
@@ -104,11 +106,9 @@ class CleanIAPService {
    */
   static async purchaseProduct(productId) {
     try {
-      if (__DEV__) {
-        console.log('🛒 Starting purchase:', productId);
-      }
+      console.log('🛒 Starting purchase:', productId);
 
-      // Initialize et
+      // Initialize et - HER SEFERINDE
       await this.initialize();
 
       if (!InAppPurchases) {
@@ -117,20 +117,25 @@ class CleanIAPService {
       }
 
       // Gerçek purchase
-      if (__DEV__) {
-        console.log('💳 Starting real purchase...');
-      }
+      console.log('💳 Starting real purchase...');
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
-      if (__DEV__) {
-        console.log('✅ Purchase completed:', result);
+      console.log('✅ Purchase API result:', result);
+      
+      // Eğer result.results varsa ve içinde purchase varsa, hemen işle
+      if (result && result.results && result.results.length > 0) {
+        console.log('🎯 Processing immediate results:', result.results);
+        for (const purchase of result.results) {
+          // RESTORE durumunu ZORLA yeni purchase olarak işle
+          console.log('🔄 Force processing as new purchase:', purchase.productId);
+          await this.handlePurchaseSuccess(purchase);
+        }
       }
+      
       return { success: true, result };
 
     } catch (error) {
-      if (__DEV__) {
-        console.error('❌ Purchase failed:', error);
-      }
+      console.error('❌ Purchase failed:', error);
       
       if (error.code === InAppPurchases?.IAPErrorCode?.USER_CANCELED) {
         throw new Error('Purchase canceled');
@@ -207,25 +212,32 @@ class CleanIAPService {
 
       // Kredileri ekle
       await CreditService.addCredits(packageInfo.credits);
+      console.log('✅ Credits added successfully');
       
-      // Transaction'ı bitir
+      // Transaction'ı bitir - ÖNCE bitir
       if (purchase.transactionId || purchase.purchaseToken) {
         await InAppPurchases.finishTransactionAsync(purchase, true);
+        console.log('✅ Transaction finished');
       }
 
-      // Success mesajı göster
-      Alert.alert(
-        '🎉 Purchase Successful!',
-        `${packageInfo.credits} credits added to your account.`,
-        [{ 
-          text: 'Continue', 
-          onPress: () => {
-            if (this.navigationCallback) {
-              this.navigationCallback();
+      // Success mesajı göster - setTimeout ile delay
+      setTimeout(() => {
+        Alert.alert(
+          '🎉 Purchase Successful!',
+          `${packageInfo.credits} credits added to your account.`,
+          [{ 
+            text: 'Continue', 
+            onPress: () => {
+              console.log('🏠 Navigating to home...');
+              if (this.navigationCallback) {
+                this.navigationCallback();
+              } else {
+                console.log('⚠️ No navigation callback set');
+              }
             }
-          }
-        }]
-      );
+          }]
+        );
+      }, 500);
 
     } catch (error) {
       console.error('❌ Error handling purchase success:', error);
