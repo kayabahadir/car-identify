@@ -4,7 +4,7 @@
     "slug": "car-identify",
     "version": "1.0.8",
     "orientation": "portrait",
-    "sdkVersion": "53.0.0",
+    "sdkVersion": "49.0.0",
     "platforms": [
       "ios",
       "android",
@@ -71,7 +71,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "13.4"
+            "deploymentTarget": "12.4"
           }
         }
       ]
