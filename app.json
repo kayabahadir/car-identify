@@ -21,7 +21,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
       "capabilities": {
-        "pushNotifications": true
+        "pushNotifications": false
       },
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera to capture car images for identification.",
