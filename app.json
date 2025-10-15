@@ -5,7 +5,6 @@
     "version": "1.0.8",
     "orientation": "portrait",
     "sdkVersion": "54.0.0",
-    "newArchEnabled": true,
     "platforms": [
       "ios",
       "android",
@@ -21,9 +20,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
-      "capabilities": {
-        "pushNotifications": false
-      },
+      "buildNumber": "17",
+      "capabilities": [
+        "inAppPurchase"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera to capture car images for identification.",
         "NSPhotoLibraryUsageDescription": "This app accesses photo library to select car images for identification.",
@@ -40,8 +40,7 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -55,7 +54,7 @@
         "projectId": "6088d043-05b9-4843-b2cd-c66350e9a7a7"
       }
     },
-    "owner": "kyabahadr",
+    "owner": "car-identify-team",
     "plugins": [
       "expo-dev-client",
       [
@@ -68,14 +67,6 @@
         "expo-camera",
         {
           "cameraPermission": "This app uses camera to capture car images for identification."
-        }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "deploymentTarget": "15.0"
-          }
         }
       ]
     ]
