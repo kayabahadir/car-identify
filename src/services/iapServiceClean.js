@@ -1,4 +1,5 @@
 import CreditService from './creditService';
+import ReceiptValidationService from './receiptValidationService';
 import { Alert } from 'react-native';
 
 // IAP modülünü conditionally import et
@@ -199,7 +200,7 @@ class CleanIAPService {
   }
 
   /**
-   * Purchase başarılı olduğunda
+   * Purchase başarılı olduğunda - Receipt validation ile
    */
   static async handlePurchaseSuccess(purchase) {
     try {
@@ -211,11 +212,38 @@ class CleanIAPService {
         return;
       }
 
+      // Receipt validation yap (eğer enable ise)
+      let validationResult = { success: true }; // Default success
+      
+      if (this.shouldValidateReceipt()) {
+        validationResult = await this.validatePurchaseReceipt(purchase);
+        
+        if (!validationResult.success) {
+          console.error('❌ Receipt validation failed:', validationResult.error);
+          
+          // Fallback mode aktif ise devam et
+          if (this.shouldUseFallbackMode()) {
+            console.log('⚠️ Using fallback mode - proceeding without receipt validation');
+          } else {
+            Alert.alert(
+              'Purchase Error',
+              'Receipt validation failed. Please try again.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        } else {
+          console.log('✅ Receipt validation successful');
+        }
+      } else {
+        console.log('⚠️ Receipt validation disabled - proceeding without validation');
+      }
+
       // Kredileri ekle
       await CreditService.addCredits(packageInfo.credits);
       console.log('✅ Credits added successfully');
       
-      // Transaction'ı bitir - ÖNCE bitir
+      // Transaction'ı bitir - Receipt validation'dan sonra
       if (purchase.transactionId || purchase.purchaseToken) {
         await InAppPurchases.finishTransactionAsync(purchase, true);
         console.log('✅ Transaction finished');
@@ -242,6 +270,121 @@ class CleanIAPService {
 
     } catch (error) {
       console.error('❌ Error handling purchase success:', error);
+      
+      // Hata durumunda kullanıcıya bilgi ver
+      Alert.alert(
+        'Purchase Error',
+        'An error occurred while processing your purchase. Please contact support.',
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  /**
+   * Purchase receipt'ini validate et
+   * @param {Object} purchase - Purchase object
+   * @returns {Promise<Object>} Validation result
+   */
+  static async validatePurchaseReceipt(purchase) {
+    try {
+      console.log('🔍 Validating purchase receipt...', purchase.productId);
+
+      // Receipt data'yı al
+      const receiptData = await this.getReceiptData();
+      
+      if (!receiptData) {
+        console.error('❌ No receipt data available');
+        return { success: false, error: 'No receipt data' };
+      }
+
+      // Production environment'da validate et
+      const validationResult = await ReceiptValidationService.validateReceipt(
+        receiptData, 
+        true // Production
+      );
+
+      if (!validationResult.success) {
+        console.error('❌ Receipt validation failed:', validationResult.status);
+        return { 
+          success: false, 
+          error: ReceiptValidationService.getStatusDescription(validationResult.status)
+        };
+      }
+
+      // Transaction'ı bul
+      const transaction = ReceiptValidationService.findTransactionForProduct(
+        validationResult, 
+        purchase.productId
+      );
+
+      if (!transaction) {
+        console.error('❌ Transaction not found in receipt for product:', purchase.productId);
+        return { success: false, error: 'Transaction not found in receipt' };
+      }
+
+      console.log('✅ Receipt validation successful for product:', purchase.productId);
+      return { success: true, transaction };
+
+    } catch (error) {
+      console.error('❌ Receipt validation error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Receipt data'yı al
+   * @returns {Promise<string|null>} Base64 encoded receipt data
+   */
+  static async getReceiptData() {
+    try {
+      if (!InAppPurchases) {
+        console.log('⚠️ IAP not available, skipping receipt validation');
+        return null;
+      }
+
+      // Receipt'i al
+      const receipt = await InAppPurchases.getReceiptAsync();
+      
+      if (!receipt) {
+        console.error('❌ No receipt available');
+        return null;
+      }
+
+      console.log('📄 Receipt data retrieved');
+      return receipt;
+
+    } catch (error) {
+      console.error('❌ Error getting receipt data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Receipt validation yapılmalı mı kontrol et
+   * @returns {boolean}
+   */
+  static shouldValidateReceipt() {
+    try {
+      // Config'den kontrol et
+      const config = require('../config/appStoreConfig').default;
+      return config.ENVIRONMENT.ENABLE_RECEIPT_VALIDATION;
+    } catch (error) {
+      console.log('⚠️ Config not found, using default validation setting');
+      return true; // Default olarak validation yap
+    }
+  }
+
+  /**
+   * Fallback mode kullanılmalı mı kontrol et
+   * @returns {boolean}
+   */
+  static shouldUseFallbackMode() {
+    try {
+      const config = require('../config/appStoreConfig').default;
+      return config.ENVIRONMENT.ENABLE_FALLBACK_MODE;
+    } catch (error) {
+      console.log('⚠️ Config not found, using default fallback setting');
+      return false; // Default olarak fallback yok
     }
   }
 
