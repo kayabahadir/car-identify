@@ -34,7 +34,10 @@ const AppStoreConfig = {
   DEBUG: {
     LOG_RECEIPT_VALIDATION: __DEV__,
     LOG_PURCHASE_FLOW: __DEV__,
-    MOCK_RECEIPT_VALIDATION: false // Development için mock mode
+    MOCK_RECEIPT_VALIDATION: false, // Development için mock mode
+    // Test only: Force mock purchase flow without Apple sheet
+    // Enable during device testing, disable before release
+    FORCE_MOCK_PURCHASE: false
   }
 };
 

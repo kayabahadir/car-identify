@@ -41,6 +41,17 @@ class CleanIAPService {
    */
   static async initialize() {
     try {
+      // Debug config üzerinden mock moda zorla (test amaçlı)
+      try {
+        const config = require('../config/appStoreConfig').default;
+        if (config?.DEBUG?.FORCE_MOCK_PURCHASE) {
+          console.log('⚠️ FORCE_MOCK_PURCHASE enabled - running in mock mode');
+          InAppPurchases = null; // mockPurchase kullanılacak
+        }
+      } catch (e) {
+        // config okunamazsa sessiz geç
+      }
+
       if (!InAppPurchases) {
         console.log('⚠️ IAP Mock mode - initialized');
         this.isInitialized = true;

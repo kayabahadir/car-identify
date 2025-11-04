@@ -354,7 +354,21 @@ const PurchaseScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('buyCredits')}</Text>
+        <Text
+          style={styles.headerTitle}
+          onLongPress={async () => {
+            try {
+              await CreditService.addCredits(10);
+              Alert.alert('Test', '10 test kredi eklendi');
+              const credits = await CreditService.getCredits();
+              setCurrentCredits(credits);
+            } catch (e) {
+              Alert.alert('Test', 'Kredi eklenemedi');
+            }
+          }}
+        >
+          {t('buyCredits')}
+        </Text>
         {__DEV__ && (
           <TouchableOpacity 
             onPress={() => DebugService.showIAPDebug()} 
