@@ -124,6 +124,18 @@ class CleanIAPService {
       // Initialize et - HER SEFERINDE
       await this.initialize();
 
+      // Ürün ID doğrulaması - yanlış/uyumsuz ID'yi erken yakala
+      const packageInfo = this.CREDIT_PACKAGES[productId];
+      if (!packageInfo) {
+        console.error('❌ Unknown productId for purchase:', productId, 'Known:', Object.keys(this.CREDIT_PACKAGES));
+        Alert.alert(
+          'Purchase Error',
+          'Ürün yapılandırması bulunamadı. Lütfen uygulamayı güncelleyin veya desteğe başvurun.',
+          [{ text: 'OK' }]
+        );
+        throw new Error('Unknown productId: ' + productId);
+      }
+
       if (!InAppPurchases) {
         // Mock purchase
         return await this.mockPurchase(productId);

@@ -232,6 +232,10 @@ const PurchaseScreen = ({ navigation }) => {
     try {
       // Basit purchase akışı
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
+      // Ek güvenlik: başarıdan hemen sonra ana ekrana dön ve yenile
+      try {
+        navigation.navigate('Home', { forceRefresh: Date.now() });
+      } catch (e) {}
       
       // FirstTime service'i işaretle
       await FirstTimeService.markFreeAnalysisUsed();
