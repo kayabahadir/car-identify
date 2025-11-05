@@ -21,6 +21,7 @@ class CleanIAPService {
   static isInitialized = false;
   static products = [];
   static navigationCallback = null;
+  static isMockMode = false;
 
   // Mevcut consumable product ID'ler
   static PRODUCT_IDS = {
@@ -42,21 +43,25 @@ class CleanIAPService {
   static async initialize() {
     try {
       // Debug config üzerinden mock moda zorla (test amaçlı)
+      let forcedMockMode = false;
       try {
         const config = require('../config/appStoreConfig').default;
         if (config?.DEBUG?.FORCE_MOCK_PURCHASE) {
           console.log('⚠️ FORCE_MOCK_PURCHASE enabled - running in mock mode');
-          InAppPurchases = null; // mockPurchase kullanılacak
+          forcedMockMode = true;
         }
       } catch (e) {
         // config okunamazsa sessiz geç
       }
 
-      if (!InAppPurchases) {
+      if (!InAppPurchases || forcedMockMode) {
         console.log('⚠️ IAP Mock mode - initialized');
         this.isInitialized = true;
+        this.isMockMode = true;
         return true;
       }
+      
+      this.isMockMode = false;
 
       // HER SEFERINDE yeniden initialize et (TestFlight için)
       console.log('🔄 Re-initializing IAP service...');
@@ -136,7 +141,7 @@ class CleanIAPService {
         throw new Error('Unknown productId: ' + productId);
       }
 
-      if (!InAppPurchases) {
+      if (!InAppPurchases || this.isMockMode) {
         // Mock purchase
         return await this.mockPurchase(productId);
       }
@@ -174,9 +179,7 @@ class CleanIAPService {
    * Mock purchase (development)
    */
   static async mockPurchase(productId) {
-    if (__DEV__) {
-      console.log('🎭 Mock purchase started:', productId);
-    }
+    console.log('🎭 Mock purchase started:', productId);
     
     // 2 saniye bekle
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -189,18 +192,22 @@ class CleanIAPService {
         await CreditService.addCredits(packageInfo.credits);
         
         // Kredileri kontrol et
-        const currentCredits = await CreditService.getCredits();
+        const totalAfter = await CreditService.getCredits();
+        console.log('✅ Mock purchase - credits added. Total now:', totalAfter);
         
         // Success mesajı göster - setTimeout ile delay
         setTimeout(() => {
           Alert.alert(
             '🎉 Purchase Successful!',
-            `${packageInfo.credits} credits added to your account.`,
+            `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
             [{ 
               text: 'Continue', 
               onPress: () => {
+                console.log('🏠 Mock purchase - navigating to home...');
                 if (this.navigationCallback) {
                   this.navigationCallback();
+                } else {
+                  console.log('⚠️ No navigation callback set');
                 }
               }
             }]
@@ -208,15 +215,11 @@ class CleanIAPService {
         }, 500);
         
       } catch (creditError) {
-        if (__DEV__) {
-          console.error('❌ Error adding credits:', creditError);
-        }
+        console.error('❌ Error adding credits:', creditError);
       }
     } else {
-      if (__DEV__) {
-        console.error('❌ Package info not found for product:', productId);
-        console.log('📋 Available packages:', Object.keys(this.CREDIT_PACKAGES));
-      }
+      console.error('❌ Package info not found for product:', productId);
+      console.log('📋 Available packages:', Object.keys(this.CREDIT_PACKAGES));
     }
     
     return { success: true, mock: true };
@@ -264,19 +267,26 @@ class CleanIAPService {
 
       // Kredileri ekle
       await CreditService.addCredits(packageInfo.credits);
-      console.log('✅ Credits added successfully');
+      const totalAfter = await CreditService.getCredits();
+      console.log('✅ Credits added successfully. Total now:', totalAfter);
       
-      // Transaction'ı bitir - Receipt validation'dan sonra
-      if (purchase.transactionId || purchase.purchaseToken) {
-        await InAppPurchases.finishTransactionAsync(purchase, true);
-        console.log('✅ Transaction finished');
+      // Transaction'ı bitir - mümkünse her durumda dene
+      if (InAppPurchases && !this.isMockMode) {
+        try {
+          await InAppPurchases.finishTransactionAsync(purchase, true);
+          console.log('✅ Transaction finished');
+        } catch (finishErr) {
+          console.log('⚠️ finishTransactionAsync failed:', finishErr?.message || String(finishErr));
+        }
+      } else {
+        console.log('⚠️ finishTransactionAsync skipped (mock mode or no IAP module)');
       }
 
       // Success mesajı göster - setTimeout ile delay
       setTimeout(() => {
         Alert.alert(
           '🎉 Purchase Successful!',
-          `${packageInfo.credits} credits added to your account.`,
+          `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
           [{ 
             text: 'Continue', 
             onPress: () => {

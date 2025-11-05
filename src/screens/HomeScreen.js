@@ -69,6 +69,7 @@ const HomeScreen = ({ navigation, route }) => {
   // Sayfa odaklandığında kredi durumunu yenile
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
+      console.log('🔄 HomeScreen focused - refreshing credit status');
       checkCreditStatus();
     });
     return unsubscribe;

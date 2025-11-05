@@ -256,11 +256,6 @@ const PurchaseScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
       setSelectedPackage(null);
-      
-      // Kredileri yenile
-      setTimeout(async () => {
-        await loadCurrentCredits();
-      }, 1000);
     }
   };
 
