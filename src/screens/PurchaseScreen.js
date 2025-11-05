@@ -223,27 +223,21 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const handlePurchase = async (packageInfo) => {
-    if (__DEV__) {
-      console.log('🎯 handlePurchase called with:', packageInfo);
-    }
+    console.log('🎯 handlePurchase called with:', packageInfo);
     setLoading(true);
     setSelectedPackage(packageInfo.id);
 
     try {
-      // Basit purchase akışı
-      const result = await CleanIAPService.purchaseProduct(packageInfo.id);
+      // Basit purchase akışı - alert ve navigation service içinde yapılacak
+      await CleanIAPService.purchaseProduct(packageInfo.id);
       
       // FirstTime service'i işaretle
       await FirstTimeService.markFreeAnalysisUsed();
       
-      if (__DEV__) {
-        console.log('✅ Purchase process completed');
-      }
+      console.log('✅ Purchase process completed');
 
     } catch (error) {
-      if (__DEV__) {
-        console.error('❌ Purchase error:', error);
-      }
+      console.error('❌ Purchase error:', error);
       
       // User cancel etmediyse error göster
       if (!error.message?.includes('cancel')) {
@@ -253,10 +247,12 @@ const PurchaseScreen = ({ navigation }) => {
           [{ text: 'Tamam' }]
         );
       }
-    } finally {
+      
+      // Hata durumunda loading'i kapat
       setLoading(false);
       setSelectedPackage(null);
     }
+    // finally bloğunu kaldırdık - loading alert içindeki Continue'da kapanacak
   };
 
   const renderPackage = (pkg) => (

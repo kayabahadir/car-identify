@@ -195,24 +195,22 @@ class CleanIAPService {
         const totalAfter = await CreditService.getCredits();
         console.log('✅ Mock purchase - credits added. Total now:', totalAfter);
         
-        // Success mesajı göster - setTimeout ile delay
-        setTimeout(() => {
-          Alert.alert(
-            '🎉 Purchase Successful!',
-            `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
-            [{ 
-              text: 'Continue', 
-              onPress: () => {
-                console.log('🏠 Mock purchase - navigating to home...');
-                if (this.navigationCallback) {
-                  this.navigationCallback();
-                } else {
-                  console.log('⚠️ No navigation callback set');
-                }
+        // Success mesajı göster - hemen göster (setTimeout kaldırıldı)
+        Alert.alert(
+          '🎉 Purchase Successful!',
+          `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
+          [{ 
+            text: 'Continue', 
+            onPress: () => {
+              console.log('🏠 Mock purchase - navigating to home...');
+              if (this.navigationCallback) {
+                this.navigationCallback();
+              } else {
+                console.log('⚠️ No navigation callback set');
               }
-            }]
-          );
-        }, 500);
+            }
+          }]
+        );
         
       } catch (creditError) {
         console.error('❌ Error adding credits:', creditError);
@@ -282,24 +280,22 @@ class CleanIAPService {
         console.log('⚠️ finishTransactionAsync skipped (mock mode or no IAP module)');
       }
 
-      // Success mesajı göster - setTimeout ile delay
-      setTimeout(() => {
-        Alert.alert(
-          '🎉 Purchase Successful!',
-          `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
-          [{ 
-            text: 'Continue', 
-            onPress: () => {
-              console.log('🏠 Navigating to home...');
-              if (this.navigationCallback) {
-                this.navigationCallback();
-              } else {
-                console.log('⚠️ No navigation callback set');
-              }
+      // Success mesajı göster - hemen göster (setTimeout kaldırıldı)
+      Alert.alert(
+        '🎉 Purchase Successful!',
+        `${packageInfo.credits} credits added. Total credits: ${totalAfter}.`,
+        [{ 
+          text: 'Continue', 
+          onPress: () => {
+            console.log('🏠 Navigating to home...');
+            if (this.navigationCallback) {
+              this.navigationCallback();
+            } else {
+              console.log('⚠️ No navigation callback set');
             }
-          }]
-        );
-      }, 500);
+          }
+        }]
+      );
 
     } catch (error) {
       console.error('❌ Error handling purchase success:', error);
