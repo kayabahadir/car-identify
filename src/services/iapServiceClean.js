@@ -160,9 +160,16 @@ class CleanIAPService {
           console.log('🔄 Force processing as new purchase:', purchase.productId);
           await this.handlePurchaseSuccess(purchase);
         }
+        
+        // Kredileri kontrol et
+        const totalAfter = await CreditService.getCredits();
+        return { success: true, result, totalCredits: totalAfter };
       }
       
-      return { success: true, result };
+      // Result boşsa listener'dan gelecek, ama yine de success dön
+      console.log('⚠️ No immediate results - waiting for listener or assuming success');
+      const totalAfter = await CreditService.getCredits();
+      return { success: true, result, totalCredits: totalAfter };
 
     } catch (error) {
       console.error('❌ Purchase failed:', error);

@@ -37,7 +37,7 @@ const AppStoreConfig = {
     MOCK_RECEIPT_VALIDATION: false, // Development için mock mode
     // Test only: Force mock purchase flow without Apple sheet
     // Enable during device testing, disable before release
-    FORCE_MOCK_PURCHASE: false
+    FORCE_MOCK_PURCHASE: true
   }
 };
 
