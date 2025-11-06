@@ -228,16 +228,37 @@ const PurchaseScreen = ({ navigation }) => {
     setSelectedPackage(packageInfo.id);
 
     try {
-      // Basit purchase akışı - alert ve navigation service içinde yapılacak
-      await CleanIAPService.purchaseProduct(packageInfo.id);
+      // Basit purchase akışı
+      const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
       // FirstTime service'i işaretle
       await FirstTimeService.markFreeAnalysisUsed();
       
-      console.log('✅ Purchase process completed');
+      console.log('✅ Purchase process completed:', result);
+      
+      // Loading'i kapat
+      setLoading(false);
+      setSelectedPackage(null);
+      
+      // Success alert göster
+      Alert.alert(
+        '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
+        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+        [{ 
+          text: language === 'tr' ? 'Devam' : 'Continue',
+          onPress: () => {
+            // Home'a dön ve kredileri yenile
+            navigation.navigate('Home', { forceRefresh: Date.now() });
+          }
+        }]
+      );
 
     } catch (error) {
       console.error('❌ Purchase error:', error);
+      
+      // Loading'i kapat
+      setLoading(false);
+      setSelectedPackage(null);
       
       // User cancel etmediyse error göster
       if (!error.message?.includes('cancel')) {
@@ -247,12 +268,7 @@ const PurchaseScreen = ({ navigation }) => {
           [{ text: 'Tamam' }]
         );
       }
-      
-      // Hata durumunda loading'i kapat
-      setLoading(false);
-      setSelectedPackage(null);
     }
-    // finally bloğunu kaldırdık - loading alert içindeki Continue'da kapanacak
   };
 
   const renderPackage = (pkg) => (
