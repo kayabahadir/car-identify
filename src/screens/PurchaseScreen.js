@@ -231,19 +231,26 @@ const PurchaseScreen = ({ navigation }) => {
       // Basit purchase akışı
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
+      console.log('✅ Purchase result:', result);
+      console.log('📊 Total credits from result:', result?.totalCredits);
+      
       // FirstTime service'i işaretle
       await FirstTimeService.markFreeAnalysisUsed();
       
-      console.log('✅ Purchase process completed:', result);
+      console.log('✅ Purchase process completed');
       
       // Loading'i kapat
       setLoading(false);
       setSelectedPackage(null);
       
+      // Debug: Hangi modda olduğunu göster
+      const mode = result?.mock ? 'MOCK' : 'REAL IAP';
+      const creditsInfo = result?.totalCredits ? ` (Total: ${result.totalCredits})` : '';
+      
       // Success alert göster
       Alert.alert(
         '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
-        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}${creditsInfo}\n\nMode: ${mode}`,
         [{ 
           text: language === 'tr' ? 'Devam' : 'Continue',
           onPress: () => {

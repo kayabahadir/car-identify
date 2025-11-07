@@ -128,6 +128,12 @@ class CleanIAPService {
 
       // Initialize et - HER SEFERINDE
       await this.initialize();
+      
+      console.log('🔍 IAP Status:', {
+        InAppPurchases: !!InAppPurchases,
+        isMockMode: this.isMockMode,
+        isInitialized: this.isInitialized
+      });
 
       // Ürün ID doğrulaması - yanlış/uyumsuz ID'yi erken yakala
       const packageInfo = this.CREDIT_PACKAGES[productId];
@@ -142,9 +148,12 @@ class CleanIAPService {
       }
 
       if (!InAppPurchases || this.isMockMode) {
+        console.log('⚠️ Using mock purchase mode');
         // Mock purchase
         return await this.mockPurchase(productId);
       }
+      
+      console.log('✅ Using REAL IAP mode');
 
       // Gerçek purchase
       console.log('💳 Starting real purchase...');
