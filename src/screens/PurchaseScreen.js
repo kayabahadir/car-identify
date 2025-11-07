@@ -201,12 +201,34 @@ const PurchaseScreen = ({ navigation }) => {
 
       if (products && products.length > 0) {
         setIapProducts(products);
+        
+        // Debug: Ürünler yüklendi mi kontrol et
+        Alert.alert(
+          'IAP Products Loaded',
+          `${products.length} products loaded from App Store`,
+          [{ text: 'OK' }]
+        );
       } else {
         console.log('No products found, using fallback');
+        
+        // Debug: Ürün yüklenemedi uyarısı
+        Alert.alert(
+          'IAP Products NOT Loaded',
+          'No products from App Store. Using fallback prices. Real purchases may not work.',
+          [{ text: 'OK' }]
+        );
+        
         setFallbackProducts();
       }
     } catch (error) {
       console.error('Error loading IAP products:', error);
+      
+      Alert.alert(
+        'IAP Load Error',
+        `Error: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+      
       setFallbackProducts();
     }
   };
