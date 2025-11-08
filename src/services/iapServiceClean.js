@@ -353,9 +353,27 @@ class CleanIAPService {
       if (InAppPurchases && !this.isMockMode) {
         try {
           await InAppPurchases.finishTransactionAsync(purchase, true);
-          console.log('✅ Transaction finished');
+          console.log('✅ Transaction finished for:', purchase.productId);
         } catch (finishErr) {
           console.log('⚠️ finishTransactionAsync failed:', finishErr?.message || String(finishErr));
+        }
+        
+        // Ek olarak: Tüm pending transactions'ları temizle
+        try {
+          console.log('🧹 Cleaning all pending transactions after purchase...');
+          const history = await InAppPurchases.getPurchaseHistoryAsync();
+          if (history && history.results && history.results.length > 0) {
+            for (const pendingPurchase of history.results) {
+              try {
+                await InAppPurchases.finishTransactionAsync(pendingPurchase, true);
+                console.log('✅ Cleaned pending transaction:', pendingPurchase.productId);
+              } catch (e) {
+                console.log('⚠️ Could not clean pending transaction:', e.message);
+              }
+            }
+          }
+        } catch (cleanupErr) {
+          console.log('⚠️ Cleanup failed:', cleanupErr.message);
         }
       } else {
         console.log('⚠️ finishTransactionAsync skipped (mock mode or no IAP module)');
