@@ -69,6 +69,26 @@ class CleanIAPService {
       // IAP'ı bağla
       await InAppPurchases.connectAsync();
       
+      // Bekleyen (pending) purchases'ı temizle
+      try {
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        console.log('📜 Purchase history:', history);
+        
+        if (history && history.results && history.results.length > 0) {
+          console.log('🧹 Cleaning up pending purchases...');
+          for (const purchase of history.results) {
+            try {
+              await InAppPurchases.finishTransactionAsync(purchase, true);
+              console.log('✅ Finished pending transaction:', purchase.productId);
+            } catch (e) {
+              console.log('⚠️ Could not finish transaction:', e.message);
+            }
+          }
+        }
+      } catch (historyError) {
+        console.log('⚠️ Could not get purchase history:', historyError.message);
+      }
+      
       // Purchase listener kur - HER SEFERINDE yeniden
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
