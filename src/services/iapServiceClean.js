@@ -159,7 +159,14 @@ class CleanIAPService {
       console.log('💳 Starting real purchase...');
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
-      console.log('✅ Purchase API result:', result);
+      console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
+      
+      // Result'u alert ile göster (debug için)
+      Alert.alert(
+        'Purchase Result Debug',
+        `ResponseCode: ${result?.responseCode}\nResults: ${result?.results?.length || 0}\nErrorCode: ${result?.errorCode || 'none'}`,
+        [{ text: 'OK' }]
+      );
       
       // Eğer result.results varsa ve içinde purchase varsa, hemen işle
       if (result && result.results && result.results.length > 0) {
