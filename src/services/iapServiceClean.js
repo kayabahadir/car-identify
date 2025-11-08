@@ -93,6 +93,13 @@ class CleanIAPService {
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
         
+        // Debug alert
+        Alert.alert(
+          'Listener Triggered',
+          `ResponseCode: ${responseCode}\nResults: ${results?.length || 0}\nErrorCode: ${errorCode || 'none'}`,
+          [{ text: 'OK' }]
+        );
+        
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
           for (const purchase of results) {
             console.log('🎯 Processing purchase:', purchase);
