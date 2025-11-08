@@ -209,8 +209,27 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // Result boşsa listener'dan gelecek, ama yine de success dön
-      console.log('⚠️ No immediate results - waiting for listener or assuming success');
+      // Result boşsa ama responseCode OK ise - manuel olarak purchase oluştur ve işle
+      if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
+        console.log('⚠️ No results but responseCode is OK - creating manual purchase object');
+        
+        // Manuel purchase objesi oluştur
+        const manualPurchase = {
+          productId: productId,
+          transactionDate: Date.now(),
+          acknowledged: false
+        };
+        
+        console.log('🔄 Processing manual purchase:', manualPurchase);
+        await this.handlePurchaseSuccess(manualPurchase);
+        
+        // Kredileri kontrol et
+        const totalAfter = await CreditService.getCredits();
+        return { success: true, result, totalCredits: totalAfter };
+      }
+      
+      // Hiçbir şey yoksa listener'dan gelecek
+      console.log('⚠️ No immediate results - waiting for listener');
       const totalAfter = await CreditService.getCredits();
       return { success: true, result, totalCredits: totalAfter };
 
