@@ -93,13 +93,6 @@ class CleanIAPService {
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
         
-        // Debug alert
-        Alert.alert(
-          'Listener Triggered',
-          `ResponseCode: ${responseCode}\nResults: ${results?.length || 0}\nErrorCode: ${errorCode || 'none'}`,
-          [{ text: 'OK' }]
-        );
-        
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
           for (const purchase of results) {
             console.log('🎯 Processing purchase:', purchase);
@@ -187,21 +180,6 @@ class CleanIAPService {
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
-      
-      // ResponseCode'u kontrol et
-      const responseCodeValue = result?.responseCode;
-      const responseCodeName = responseCodeValue !== undefined 
-        ? Object.keys(InAppPurchases.IAPResponseCode).find(
-            key => InAppPurchases.IAPResponseCode[key] === responseCodeValue
-          ) || 'UNKNOWN'
-        : 'UNDEFINED';
-      
-      // Result'u alert ile göster (debug için)
-      Alert.alert(
-        'Purchase Result Debug',
-        `ResponseCode: ${responseCodeValue} (${responseCodeName})\nResults: ${result?.results?.length || 0}\nErrorCode: ${result?.errorCode || 'none'}\n\nFull result: ${JSON.stringify(result)}`,
-        [{ text: 'OK' }]
-      );
       
       // Eğer result.results varsa ve içinde purchase varsa, hemen işle
       if (result && result.results && result.results.length > 0) {

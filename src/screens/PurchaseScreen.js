@@ -201,34 +201,13 @@ const PurchaseScreen = ({ navigation }) => {
 
       if (products && products.length > 0) {
         setIapProducts(products);
-        
-        // Debug: Ürünler yüklendi mi kontrol et
-        Alert.alert(
-          'IAP Products Loaded',
-          `${products.length} products loaded from App Store`,
-          [{ text: 'OK' }]
-        );
+        console.log('✅ IAP products loaded successfully');
       } else {
         console.log('No products found, using fallback');
-        
-        // Debug: Ürün yüklenemedi uyarısı
-        Alert.alert(
-          'IAP Products NOT Loaded',
-          'No products from App Store. Using fallback prices. Real purchases may not work.',
-          [{ text: 'OK' }]
-        );
-        
         setFallbackProducts();
       }
     } catch (error) {
       console.error('Error loading IAP products:', error);
-      
-      Alert.alert(
-        'IAP Load Error',
-        `Error: ${error.message}`,
-        [{ text: 'OK' }]
-      );
-      
       setFallbackProducts();
     }
   };
@@ -265,14 +244,10 @@ const PurchaseScreen = ({ navigation }) => {
       setLoading(false);
       setSelectedPackage(null);
       
-      // Debug: Hangi modda olduğunu göster
-      const mode = result?.mock ? 'MOCK' : 'REAL IAP';
-      const creditsInfo = result?.totalCredits ? ` (Total: ${result.totalCredits})` : '';
-      
       // Success alert göster
       Alert.alert(
         '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
-        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}${creditsInfo}\n\nMode: ${mode}`,
+        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
         [{ 
           text: language === 'tr' ? 'Devam' : 'Continue',
           onPress: () => {
@@ -390,19 +365,7 @@ const PurchaseScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
-        <Text
-          style={styles.headerTitle}
-          onLongPress={async () => {
-            try {
-              await CreditService.addCredits(10);
-              Alert.alert('Test', '10 test kredi eklendi');
-              const credits = await CreditService.getCredits();
-              setCurrentCredits(credits);
-            } catch (e) {
-              Alert.alert('Test', 'Kredi eklenemedi');
-            }
-          }}
-        >
+        <Text style={styles.headerTitle}>
           {t('buyCredits')}
         </Text>
         {__DEV__ && (
