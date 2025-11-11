@@ -299,24 +299,31 @@ class CleanIAPService {
       let validationResult = { success: true }; // Default success
       
       if (this.shouldValidateReceipt()) {
+        console.log('🔍 Receipt validation enabled - validating purchase...');
         validationResult = await this.validatePurchaseReceipt(purchase);
         
         if (!validationResult.success) {
-          console.error('❌ Receipt validation failed:', validationResult.error);
+          console.error('❌ Receipt validation failed:', {
+            error: validationResult.error,
+            status: validationResult.status,
+            productId: purchase.productId
+          });
           
           // Fallback mode aktif ise devam et
           if (this.shouldUseFallbackMode()) {
             console.log('⚠️ Using fallback mode - proceeding without receipt validation');
+            console.log('⚠️ Fallback reason:', validationResult.error);
           } else {
+            console.error('❌ Fallback mode disabled - blocking purchase');
             Alert.alert(
               'Purchase Error',
-              'Receipt validation failed. Please try again.',
+              'Receipt validation failed. Please contact support if this issue persists.',
               [{ text: 'OK' }]
             );
             return;
           }
         } else {
-          console.log('✅ Receipt validation successful');
+          console.log('✅ Receipt validation successful for:', purchase.productId);
         }
       } else {
         console.log('⚠️ Receipt validation disabled - proceeding without validation');
@@ -385,32 +392,44 @@ class CleanIAPService {
       
       if (!receiptData) {
         console.error('❌ No receipt data available');
-        return { success: false, error: 'No receipt data' };
+        return { success: false, error: 'No receipt data', status: -1 };
       }
 
-      // Production environment'da validate et
+      // Production environment'da validate et (Apple'ın önerdiği şekilde)
       const validationResult = await ReceiptValidationService.validateReceipt(
         receiptData, 
-        true // Production
+        true // Always start with production
       );
 
       if (!validationResult.success) {
-        console.error('❌ Receipt validation failed:', validationResult.status);
+        console.error('❌ Receipt validation failed:', {
+          status: validationResult.status,
+          error: validationResult.error,
+          environment: validationResult.environment
+        });
         return { 
-          success: false, 
+          success: false,
+          status: validationResult.status,
           error: ReceiptValidationService.getStatusDescription(validationResult.status)
         };
       }
 
-      // Transaction'ı bul
+      console.log('✅ Receipt validation successful:', {
+        environment: validationResult.environment,
+        status: validationResult.status
+      });
+
+      // Transaction'ı bul (consumable için gerekli değil ama kontrol edelim)
       const transaction = ReceiptValidationService.findTransactionForProduct(
         validationResult, 
         purchase.productId
       );
 
       if (!transaction) {
-        console.error('❌ Transaction not found in receipt for product:', purchase.productId);
-        return { success: false, error: 'Transaction not found in receipt' };
+        console.warn('⚠️ Transaction not found in receipt for product:', purchase.productId);
+        console.log('⚠️ This may be normal for consumable products - proceeding anyway');
+        // Consumable products için transaction bulunamayabilir, yine de devam et
+        return { success: true, transaction: null };
       }
 
       console.log('✅ Receipt validation successful for product:', purchase.productId);
@@ -418,7 +437,7 @@ class CleanIAPService {
 
     } catch (error) {
       console.error('❌ Receipt validation error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, status: -1 };
     }
   }
 

@@ -23,20 +23,40 @@ class ReceiptValidationService {
     try {
       console.log('🔍 Starting receipt validation...', { isProduction });
 
-      // İlk olarak production'da dene
+      if (!receiptData) {
+        console.error('❌ No receipt data provided');
+        return {
+          success: false,
+          error: 'No receipt data',
+          status: -1
+        };
+      }
+
+      // ALWAYS start with production URL (Apple's requirement)
       let validationResult = await this.validateWithApple(
         receiptData, 
         this.APPLE_URLS.PRODUCTION, 
-        isProduction
+        true
       );
 
-      // Eğer sandbox receipt hatası alırsak, sandbox'a geç
+      // If we get status 21007 (sandbox receipt in production), retry with sandbox
+      // This is the recommended approach by Apple
       if (validationResult.status === 21007) {
-        console.log('🔄 Sandbox receipt detected, switching to sandbox validation...');
+        console.log('🔄 Sandbox receipt detected (status 21007), retrying with sandbox URL...');
         validationResult = await this.validateWithApple(
           receiptData, 
           this.APPLE_URLS.SANDBOX, 
           false
+        );
+      }
+      
+      // If we get status 21008 (production receipt in sandbox), retry with production
+      else if (validationResult.status === 21008) {
+        console.log('🔄 Production receipt detected (status 21008), retrying with production URL...');
+        validationResult = await this.validateWithApple(
+          receiptData, 
+          this.APPLE_URLS.PRODUCTION, 
+          true
         );
       }
 
@@ -47,7 +67,7 @@ class ReceiptValidationService {
       return {
         success: false,
         error: error.message,
-        status: 'validation_error'
+        status: -1
       };
     }
   }
@@ -67,28 +87,35 @@ class ReceiptValidationService {
         'exclude-old-transactions': true
       };
 
-      console.log('📤 Sending validation request to:', url);
+      const environmentName = isProduction ? 'PRODUCTION' : 'SANDBOX';
+      console.log(`📤 Sending validation request to ${environmentName}:`, url);
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        timeout: 30000 // 30 second timeout
       });
 
       if (!response.ok) {
+        console.error(`❌ HTTP error! status: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
       
-      console.log('📥 Apple validation response:', {
+      console.log(`📥 Apple validation response from ${environmentName}:`, {
         status: result.status,
+        statusDescription: this.getStatusDescription(result.status),
         environment: result.environment,
         receipt: result.receipt ? 'present' : 'missing'
       });
 
+      // Status 0 = success
+      // Status 21007 = sandbox receipt sent to production (need to retry with sandbox)
+      // Status 21008 = production receipt sent to sandbox (need to retry with production)
       return {
         success: result.status === 0,
         status: result.status,
@@ -101,7 +128,11 @@ class ReceiptValidationService {
 
     } catch (error) {
       console.error('❌ Apple validation request failed:', error);
-      throw error;
+      return {
+        success: false,
+        status: -1,
+        error: error.message
+      };
     }
   }
 

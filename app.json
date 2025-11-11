@@ -2,7 +2,7 @@
   "expo": {
     "name": "Car Identify",
     "slug": "car-identify",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "sdkVersion": "54.0.0",
     "platforms": [
@@ -20,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
-      "buildNumber": "18",
+      "buildNumber": "19",
       "capabilities": [
         "inAppPurchase"
       ],
