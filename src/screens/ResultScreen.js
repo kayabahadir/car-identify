@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { identifyVehicle, getMockVehicleData, convertToLegacyFormat } from '../services/openaiService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { saveAnalysisToHistory } from '../services/historyService';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 // Responsive design utilities
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -163,9 +164,9 @@ const ResultScreen = ({ navigation, route }) => {
   const renderTabContent = () => {
     if (isLoading || !vehicleData) {
       return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a1a1a" />
-          <Text style={styles.loadingText}>{t('analyzing')}</Text>
+        <View style={styles.skeletonWrapper}>
+          <Text style={styles.loadingResultsText}>{t('loadingResults')}</Text>
+          <SkeletonLoader />
         </View>
       );
     }
@@ -558,16 +559,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  loadingContainer: {
+  skeletonWrapper: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 50,
   },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#666',
+  loadingResultsText: {
+    fontSize: getFontSize(18, 22, 26),
+    fontWeight: '600',
+    color: '#1a1a1a',
+    textAlign: 'center',
+    marginBottom: getMargin(20, 25, 30),
+    marginTop: getMargin(10, 15, 20),
   },
   tabContent: {
     backgroundColor: 'white',

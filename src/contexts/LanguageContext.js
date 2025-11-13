@@ -29,6 +29,7 @@ const translations = {
     vehicleIdentified: 'Araç Tanımlandı',
     analyzing: 'Analiz ediliyor...',
     pleaseWait: 'Lütfen bekleyin...',
+    loadingResults: 'Sonuç yükleniyor...',
     match: 'eşleşme',
     
     // Tabs
@@ -241,6 +242,7 @@ const translations = {
     vehicleIdentified: 'Vehicle Identified',
     analyzing: 'Analyzing...',
     pleaseWait: 'Please wait...',
+    loadingResults: 'Loading results...',
     match: 'match',
     
     // Tabs

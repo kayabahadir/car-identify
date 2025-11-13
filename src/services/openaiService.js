@@ -181,7 +181,7 @@ FORMAT RULES:
                 type: 'image_url',
                 image_url: {
                   url: `data:image/jpeg;base64,${base64Image}`,
-                  detail: 'high'
+                  detail: 'low'
                 }
               }
             ]
