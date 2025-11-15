@@ -13,7 +13,7 @@ const OPENAI_API_URL = USE_PROXY
 
 // Convert new engineOptions format to legacy format for UI compatibility
 export const convertToLegacyFormat = (vehicleData) => {
-  const result = { ...vehicleData };
+  const result = { ...vehicleData };  
   
   if (vehicleData.engineOptions && vehicleData.engineOptions.length > 0) {
     const engines = vehicleData.engineOptions;

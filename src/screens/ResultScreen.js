@@ -82,22 +82,35 @@ const ResultScreen = ({ navigation, route }) => {
         
         // Show appropriate alert based on error type
         let alertTitle = t('demoMode');
-        let alertMessage = language === 'tr' ? 'Demo sonuçları gösteriliyor.' : 'Showing demo results.';
+        let alertMessage = language === 'tr' ? 'Analiz hatası.' : 'Analysis error.';
+        let shouldShowDemo = __DEV__; // Only show demo in development mode
         
         if (error.message.includes('API key not configured')) {
           alertMessage = language === 'tr' 
-            ? 'OpenAI API anahtarı yapılandırılmamış. Demo sonuçları gösteriliyor. Gerçek analiz için EXPO_PUBLIC_OPENAI_API_KEY ortam değişkenini EAS Secrets ile ayarlayın veya güvenli bir backend proxy kullanın.'
-            : 'OpenAI API key not configured. Showing demo results. For real analysis, set EXPO_PUBLIC_OPENAI_API_KEY via EAS Secrets or use a secure backend proxy.';
+            ? (__DEV__
+              ? 'OpenAI API anahtarı yapılandırılmamış. Demo sonuçları gösteriliyor. Gerçek analiz için EXPO_PUBLIC_OPENAI_API_KEY ortam değişkenini EAS Secrets ile ayarlayın veya güvenli bir backend proxy kullanın.'
+              : 'OpenAI API anahtarı yapılandırılmamış. Lütfen uygulamayı güncelleyin veya desteğe başvurun.')
+            : (__DEV__
+              ? 'OpenAI API key not configured. Showing demo results. For real analysis, set EXPO_PUBLIC_OPENAI_API_KEY via EAS Secrets or use a secure backend proxy.'
+              : 'OpenAI API key not configured. Please update the app or contact support.');
         } else if (error.message.includes('Response missing language data structure')) {
           alertTitle = t('analysisIssue');
           alertMessage = language === 'tr'
-            ? 'AI servisi eksik veri döndürdü. Bunun yerine demo sonuçları gösteriliyor. Lütfen daha net bir fotoğraf çekmeyi deneyin.'
-            : 'The AI service returned incomplete data. Showing demo results instead. Please try taking a clearer photo.';
+            ? (__DEV__
+              ? 'AI servisi eksik veri döndürdü. Bunun yerine demo sonuçları gösteriliyor. Lütfen daha net bir fotoğraf çekmeyi deneyin.'
+              : 'AI servisi eksik veri döndürdü. Lütfen daha net bir fotoğraf çekmeyi deneyin.')
+            : (__DEV__
+              ? 'The AI service returned incomplete data. Showing demo results instead. Please try taking a clearer photo.'
+              : 'The AI service returned incomplete data. Please try taking a clearer photo.');
         } else if (error.message.includes('Could not parse')) {
           alertTitle = t('processingError');
           alertMessage = language === 'tr'
-            ? 'AI yanıtı işlenemiyor. Demo sonuçları gösteriliyor. Lütfen tekrar deneyin.'
-            : 'Unable to process the AI response. Showing demo results. Please try again.';
+            ? (__DEV__
+              ? 'AI yanıtı işlenemiyor. Demo sonuçları gösteriliyor. Lütfen tekrar deneyin.'
+              : 'AI yanıtı işlenemiyor. Lütfen tekrar deneyin.')
+            : (__DEV__
+              ? 'Unable to process the AI response. Showing demo results. Please try again.'
+              : 'Unable to process the AI response. Please try again.');
         } else if (error.message.includes('INSUFFICIENT_CREDITS')) {
           alertTitle = t('insufficientCredits') || 'Yetersiz Kredi';
           alertMessage = t('insufficientCreditsMessage');
@@ -116,13 +129,29 @@ const ResultScreen = ({ navigation, route }) => {
         } else if (error.message.includes('Network')) {
           alertTitle = t('connectionError');
           alertMessage = language === 'tr'
-            ? 'Ağ bağlantı sorunu. Demo sonuçları gösteriliyor. Lütfen internet bağlantınızı kontrol edin.'
-            : 'Network connection issue. Showing demo results. Please check your internet connection.';
+            ? (__DEV__
+              ? 'Ağ bağlantı sorunu. Demo sonuçları gösteriliyor. Lütfen internet bağlantınızı kontrol edin.'
+              : 'Ağ bağlantı sorunu. Lütfen internet bağlantınızı kontrol edin.')
+            : (__DEV__
+              ? 'Network connection issue. Showing demo results. Please check your internet connection.'
+              : 'Network connection issue. Please check your internet connection.');
         }
         
+        // Production'da demo mode'a düşme - direkt hata göster ve geri dön
+        if (!shouldShowDemo) {
+          Alert.alert(alertTitle, alertMessage, [
+            { 
+              text: 'OK', 
+              onPress: () => navigation.goBack() 
+            }
+          ]);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Development mode: Fall back to mock data with current language
         Alert.alert(alertTitle, alertMessage, [{ text: 'OK' }]);
         
-        // Fall back to mock data with current language
         setTimeout(async () => {
           const mockData = getMockVehicleData(language);
           setOriginalData(mockData._dualData); // Store dual language data

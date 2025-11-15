@@ -194,47 +194,49 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // Result boşsa ama responseCode OK (1) ise - manuel olarak purchase oluştur ve işle
-      if (result && (result.responseCode === InAppPurchases.IAPResponseCode.OK || result.responseCode === 1)) {
-        console.log('⚠️ No results but responseCode is OK - creating manual purchase object');
-        
-        // Manuel purchase objesi oluştur
-        const manualPurchase = {
-          productId: productId,
-          transactionDate: Date.now(),
-          acknowledged: false
-        };
-        
-        console.log('🔄 Processing manual purchase:', manualPurchase);
-        await this.handlePurchaseSuccess(manualPurchase);
-        
-        // Kredileri kontrol et
-        const totalAfter = await CreditService.getCredits();
-        return { success: true, result, totalCredits: totalAfter };
+      // USER_CANCELED durumunu kontrol et
+      if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+        console.log('❌ User canceled the purchase');
+        throw new Error('Purchase canceled by user');
       }
       
-      // responseCode undefined ise - Apple ödemeyi onayladı ama result düzgün dönmedi
-      // Bu durumda da manuel purchase oluştur
+      // responseCode undefined veya result boş ise - Bu cancel veya hata durumu
       if (!result || result.responseCode === undefined) {
-        console.log('⚠️ Result is empty or responseCode undefined - assuming success and creating manual purchase');
-        
-        // Manuel purchase objesi oluştur
-        const manualPurchase = {
-          productId: productId,
-          transactionDate: Date.now(),
-          acknowledged: false
-        };
-        
-        console.log('🔄 Processing manual purchase (undefined response):', manualPurchase);
-        await this.handlePurchaseSuccess(manualPurchase);
-        
-        // Kredileri kontrol et
-        const totalAfter = await CreditService.getCredits();
-        return { success: true, result, totalCredits: totalAfter };
+        console.log('❌ Result is empty or responseCode undefined - likely user canceled');
+        throw new Error('Purchase canceled or failed');
       }
       
-      // Hiçbir şey yoksa listener'dan gelecek
-      console.log('⚠️ No immediate results - waiting for listener');
+      // Diğer hata kodlarını kontrol et
+      if (result.responseCode !== InAppPurchases.IAPResponseCode.OK) {
+        console.log('❌ Purchase failed with responseCode:', result.responseCode);
+        throw new Error('Purchase failed with code: ' + result.responseCode);
+      }
+      
+      // responseCode OK ama results boş ise - Listener'dan gelecek
+      // Bu durumda kredi eklemeden bekle, listener handlePurchaseSuccess'i çağıracak
+      console.log('⚠️ Purchase initiated, waiting for listener to process...');
+      
+      // Listener'ın işlemesi için biraz bekle (max 3 saniye)
+      let waitTime = 0;
+      const maxWait = 3000;
+      const checkInterval = 100;
+      
+      const creditsBefore = await CreditService.getCredits();
+      
+      while (waitTime < maxWait) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waitTime += checkInterval;
+        
+        // Krediler arttı mı kontrol et (listener işledi mi?)
+        const creditsNow = await CreditService.getCredits();
+        if (creditsNow > creditsBefore) {
+          console.log('✅ Listener processed purchase successfully');
+          return { success: true, result, totalCredits: creditsNow };
+        }
+      }
+      
+      // 3 saniye sonra hala kredi artmadıysa - listener çalışmadı
+      console.log('⚠️ Listener did not process purchase in time');
       const totalAfter = await CreditService.getCredits();
       return { success: true, result, totalCredits: totalAfter };
 
