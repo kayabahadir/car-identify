@@ -2,6 +2,7 @@
 // SECURITY: Do not hardcode secrets. Use EAS secrets/env. Keys in client apps are inherently exposable.
 
 import CreditService from './creditService';
+import { Alert } from 'react-native';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
 const CLIENT_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN;
@@ -51,7 +52,6 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
     console.error('❌ Neither proxy nor API key configured!');
     
     // Show debug alert for troubleshooting
-    const { Alert } = require('react-native');
     Alert.alert(
       '🔍 Debug Info',
       `Config Check:\n\n` +
@@ -76,7 +76,6 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
     console.log('✅ Starting analysis with proxy:', USE_PROXY);
     
     // Show debug alert at start of analysis
-    const { Alert } = require('react-native');
     Alert.alert(
       '🔍 Analysis Debug',
       `Starting Analysis:\n\n` +
@@ -250,7 +249,6 @@ FORMAT RULES:
       console.error('❌ Upstream error:', response.status, rawBody?.slice(0,200));
       
       // Show error debug alert
-      const { Alert } = require('react-native');
       Alert.alert(
         '🔍 API Error Debug',
         `Response Error:\n\n` +
@@ -264,7 +262,6 @@ FORMAT RULES:
     }
     
     // Show success debug alert
-    const { Alert } = require('react-native');
     Alert.alert(
       '🔍 Response Debug',
       `✅ Success!\n\n` +
