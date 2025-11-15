@@ -11,9 +11,20 @@ const OPENAI_API_URL = USE_PROXY
   ? `${API_BASE}/api/identify`
   : 'https://api.openai.com/v1/chat/completions';
 
+// DEBUG: Configuration - will be shown via alert when needed
+const DEBUG_CONFIG = {
+  API_BASE: API_BASE || 'undefined',
+  USE_PROXY: USE_PROXY,
+  OPENAI_API_URL: OPENAI_API_URL,
+  HAS_OPENAI_KEY: !!OPENAI_API_KEY
+};
+
+// Log for development
+console.log('🔧 OpenAI Service Configuration:', DEBUG_CONFIG);
+
 // Convert new engineOptions format to legacy format for UI compatibility
 export const convertToLegacyFormat = (vehicleData) => {
-  const result = { ...vehicleData };  
+  const result = { ...vehicleData };
   
   if (vehicleData.engineOptions && vehicleData.engineOptions.length > 0) {
     const engines = vehicleData.engineOptions;
@@ -32,17 +43,50 @@ export const convertToLegacyFormat = (vehicleData) => {
 };
 
 export const identifyVehicle = async (imageSource, language = 'tr') => {
+  console.log('🚀 identifyVehicle called with language:', language);
+  console.log('🔍 Current config - USE_PROXY:', USE_PROXY, 'API_BASE:', API_BASE);
+  console.log('🔍 Will use URL:', OPENAI_API_URL);
+  
   if (!USE_PROXY && !OPENAI_API_KEY) {
+    console.error('❌ Neither proxy nor API key configured!');
+    
+    // Show debug alert for troubleshooting
+    const { Alert } = require('react-native');
+    Alert.alert(
+      '🔍 Debug Info',
+      `Config Check:\n\n` +
+      `API_BASE: ${API_BASE || 'undefined'}\n` +
+      `USE_PROXY: ${USE_PROXY}\n` +
+      `HAS_KEY: ${!!OPENAI_API_KEY}\n\n` +
+      `❌ Neither configured!`,
+      [{ text: 'OK' }]
+    );
+    
     throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
   }
 
   // Kredi/ücretsiz hak kontrolü
   const canAnalyze = await CreditService.canAnalyze();
   if (!canAnalyze.canUse) {
+    console.log('❌ Insufficient credits');
     throw new Error('INSUFFICIENT_CREDITS'); // Özel hata türü
   }
 
   try {
+    console.log('✅ Starting analysis with proxy:', USE_PROXY);
+    
+    // Show debug alert at start of analysis
+    const { Alert } = require('react-native');
+    Alert.alert(
+      '🔍 Analysis Debug',
+      `Starting Analysis:\n\n` +
+      `API_BASE: ${API_BASE || 'undefined'}\n` +
+      `USE_PROXY: ${USE_PROXY}\n` +
+      `URL: ${OPENAI_API_URL}\n` +
+      `Mode: ${USE_PROXY ? 'Proxy' : 'Direct'}`,
+      [{ text: 'Continue' }]
+    );
+    
     // Determine base64: prefer provided base64, fallback to reading from uri
     let base64Image = imageSource?.imageBase64;
     const imageUri = imageSource?.imageUri || imageSource; // Backward compatibility if string passed
@@ -50,6 +94,9 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
       base64Image = await convertImageToBase64Expo(imageUri);
     }
 
+    console.log('📡 Sending request to:', OPENAI_API_URL);
+    console.log('📡 Using headers:', USE_PROXY ? 'Proxy mode (x-client-token)' : 'Direct mode (Authorization)');
+    
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
@@ -196,9 +243,35 @@ FORMAT RULES:
 
     // Read raw text first to handle non-JSON error bodies from proxy
     const rawBody = await response.text();
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response preview:', rawBody?.slice(0, 200));
+    
     if (!response.ok) {
+      console.error('❌ Upstream error:', response.status, rawBody?.slice(0,200));
+      
+      // Show error debug alert
+      const { Alert } = require('react-native');
+      Alert.alert(
+        '🔍 API Error Debug',
+        `Response Error:\n\n` +
+        `Status: ${response.status}\n` +
+        `URL: ${OPENAI_API_URL}\n\n` +
+        `Response:\n${rawBody?.slice(0, 150)}...`,
+        [{ text: 'OK' }]
+      );
+      
       throw new Error(`Upstream error ${response.status}: ${rawBody?.slice(0,200) || 'Unknown error'}`);
     }
+    
+    // Show success debug alert
+    const { Alert } = require('react-native');
+    Alert.alert(
+      '🔍 Response Debug',
+      `✅ Success!\n\n` +
+      `Status: ${response.status}\n` +
+      `Preview: ${rawBody?.slice(0, 100)}...`,
+      [{ text: 'Continue' }]
+    );
 
     let data;
     try {

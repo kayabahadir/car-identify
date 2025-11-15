@@ -44,6 +44,24 @@ const HomeScreen = ({ navigation, route }) => {
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [purchaseLoading, setPurchaseLoading] = useState(false);
 
+  // DEBUG: Show config function
+  const showDebugInfo = () => {
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+    const USE_PROXY = !!API_BASE;
+    const HAS_KEY = !!process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+    
+    Alert.alert(
+      '🔍 Config Debug',
+      `Environment Variables:\n\n` +
+      `API_BASE:\n${API_BASE || 'undefined'}\n\n` +
+      `USE_PROXY: ${USE_PROXY}\n` +
+      `HAS_OPENAI_KEY: ${HAS_KEY}\n\n` +
+      `URL: ${USE_PROXY ? `${API_BASE}/api/identify` : 'Direct OpenAI'}\n\n` +
+      `Mode: ${USE_PROXY ? '✅ Proxy Mode' : '❌ Direct Mode'}`,
+      [{ text: 'OK' }]
+    );
+  };
+
   // Sayfa yüklendiğinde kredi durumunu kontrol et
   useEffect(() => {
     checkCreditStatus();
@@ -298,6 +316,12 @@ const HomeScreen = ({ navigation, route }) => {
           <Text style={styles.subtitle}>{t('appSubtitle')}</Text>
         </View>
         <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={[styles.languageButton, { backgroundColor: '#ef4444', marginRight: 8 }]} 
+            onPress={showDebugInfo}
+          >
+            <Text style={styles.languageText}>🔍 DEBUG</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.languageButton} onPress={toggleLanguage}>
             <Text style={styles.languageText}>{language.toUpperCase()}</Text>
           </TouchableOpacity>
