@@ -266,9 +266,16 @@ const PurchaseScreen = ({ navigation }) => {
       
       // User cancel etmediyse error göster
       if (!error.message?.includes('cancel') && !error.message?.includes('USER_CANCELED')) {
+        let errorMessage = 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.';
+        
+        // responseCode undefined hatası için özel mesaj
+        if (error.message?.includes('responseCode undefined')) {
+          errorMessage = 'Satın alma işlemi tamamlanamadı.\n\nÖneri: iPhone Ayarlar > App Store > Sandbox Account > Oturumu Kapatın ve yeni bir sandbox hesabı ile tekrar deneyin.';
+        }
+        
         Alert.alert(
           'Satın Alma Hatası',
-          'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
+          errorMessage,
           [{ text: 'Tamam' }]
         );
       }

@@ -162,11 +162,14 @@ class CleanIAPService {
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
       
       // DEBUG: Result'ı göster
-      Alert.alert(
-        'DEBUG: Purchase Result',
-        `responseCode: ${result?.responseCode}\nresults length: ${result?.results?.length || 0}\nerrorCode: ${result?.errorCode || 'none'}`,
-        [{ text: 'OK' }]
-      );
+      const debugMsg = `responseCode: ${result?.responseCode}\nresults: ${result?.results?.length || 0}\nerrorCode: ${result?.errorCode || 'none'}\n\nAnalysis:\n${
+        result?.responseCode === undefined ? '⚠️ UNDEFINED - Stuck transaction!' : 
+        result?.responseCode === 0 ? '✅ OK' :
+        result?.responseCode === 2 ? '❌ USER_CANCELED' :
+        '⚠️ Unknown: ' + result?.responseCode
+      }`;
+      
+      Alert.alert('DEBUG: Purchase Result', debugMsg, [{ text: 'OK' }]);
       
       // ÖNCE: User cancel kontrolü
       if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
@@ -185,6 +188,40 @@ class CleanIAPService {
         // Kredileri kontrol et
         const totalAfter = await CreditService.getCredits();
         return { success: true, result, totalCredits: totalAfter };
+      }
+      
+      // ÖNEMLİ: responseCode undefined ise - Stuck transaction olabilir
+      if (!result || result.responseCode === undefined) {
+        console.log('⚠️ responseCode is undefined - checking for pending transactions...');
+        
+        try {
+          const history = await InAppPurchases.getPurchaseHistoryAsync();
+          console.log('📜 Purchase history check:', history);
+          
+          if (history && history.results && history.results.length > 0) {
+            console.log('🔄 Found pending transactions, processing...');
+            
+            // Son transaction'ı al (en yeni)
+            const latestPurchase = history.results[0];
+            
+            // Eğer bu transaction bizim ürünümüz ise, işle
+            if (latestPurchase.productId === productId) {
+              console.log('✅ Processing stuck transaction for:', productId);
+              await this.handlePurchaseSuccess(latestPurchase);
+              
+              const totalAfter = await CreditService.getCredits();
+              return { success: true, result, totalCredits: totalAfter };
+            } else {
+              console.log('⚠️ Latest pending transaction is for different product:', latestPurchase.productId);
+            }
+          }
+        } catch (historyErr) {
+          console.log('❌ Could not check purchase history:', historyErr.message);
+        }
+        
+        // Pending transaction bulunamadı, hata fırlat
+        console.log('❌ responseCode undefined and no pending transactions found');
+        throw new Error('Purchase failed - responseCode undefined');
       }
       
       // Result boş veya results yok - Listener'dan gelecek
