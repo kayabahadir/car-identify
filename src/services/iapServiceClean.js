@@ -69,26 +69,6 @@ class CleanIAPService {
       // IAP'ı bağla
       await InAppPurchases.connectAsync();
       
-      // Bekleyen (pending) purchases'ı temizle
-      try {
-        const history = await InAppPurchases.getPurchaseHistoryAsync();
-        console.log('📜 Purchase history:', history);
-        
-        if (history && history.results && history.results.length > 0) {
-          console.log('🧹 Cleaning up pending purchases...');
-          for (const purchase of history.results) {
-            try {
-              await InAppPurchases.finishTransactionAsync(purchase, true);
-              console.log('✅ Finished pending transaction:', purchase.productId);
-            } catch (e) {
-              console.log('⚠️ Could not finish transaction:', e.message);
-            }
-          }
-        }
-      } catch (historyError) {
-        console.log('⚠️ Could not get purchase history:', historyError.message);
-      }
-      
       // Purchase listener kur - HER SEFERINDE yeniden
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
@@ -175,32 +155,18 @@ class CleanIAPService {
       
       console.log('✅ Using REAL IAP mode');
 
-      // AGRESIF: Purchase öncesi tüm pending transactions'ları temizle
-      try {
-        console.log('🧹 Aggressively cleaning ALL pending transactions before purchase...');
-        const history = await InAppPurchases.getPurchaseHistoryAsync();
-        if (history && history.results && history.results.length > 0) {
-          console.log('📜 Found pending transactions:', history.results.length);
-          for (const pendingPurchase of history.results) {
-            try {
-              await InAppPurchases.finishTransactionAsync(pendingPurchase, true);
-              console.log('✅ Finished pending transaction:', pendingPurchase.productId);
-            } catch (e) {
-              console.log('⚠️ Could not finish transaction:', e.message);
-            }
-          }
-        } else {
-          console.log('✅ No pending transactions found');
-        }
-      } catch (cleanupErr) {
-        console.log('⚠️ Pre-purchase cleanup failed:', cleanupErr.message);
-      }
-
       // Gerçek purchase
       console.log('💳 Starting real purchase...');
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
+      
+      // DEBUG: Result'ı göster
+      Alert.alert(
+        'DEBUG: Purchase Result',
+        `responseCode: ${result?.responseCode}\nresults length: ${result?.results?.length || 0}\nerrorCode: ${result?.errorCode || 'none'}`,
+        [{ text: 'OK' }]
+      );
       
       // ÖNCE: User cancel kontrolü
       if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
@@ -228,10 +194,30 @@ class CleanIAPService {
         throw new Error('Purchase failed');
       }
       
-      console.log('⏳ No immediate results - listener will handle the purchase');
-      // Listener kredileri ekleyecek, burada başarı dön
-      const totalAfter = await CreditService.getCredits();
-      return { success: true, result, totalCredits: totalAfter };
+      console.log('⏳ No immediate results - waiting for listener to process...');
+      
+      // Listener'ın çalışmasını bekle (max 5 saniye)
+      const creditsBefore = await CreditService.getCredits();
+      console.log('💰 Credits before listener:', creditsBefore);
+      
+      let listenerProcessed = false;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 0.5 saniye bekle
+        const creditsNow = await CreditService.getCredits();
+        
+        if (creditsNow > creditsBefore) {
+          console.log('✅ Listener processed! Credits increased from', creditsBefore, 'to', creditsNow);
+          listenerProcessed = true;
+          return { success: true, result, totalCredits: creditsNow };
+        }
+      }
+      
+      if (!listenerProcessed) {
+        console.log('⚠️ Listener did not process after 5 seconds');
+        // Yine de başarı dön, listener geç tetiklenebilir
+        const totalAfter = await CreditService.getCredits();
+        return { success: true, result, totalCredits: totalAfter };
+      }
 
     } catch (error) {
       console.error('❌ Purchase failed:', error);
@@ -329,31 +315,13 @@ class CleanIAPService {
       const totalAfter = await CreditService.getCredits();
       console.log('✅ Credits added successfully. Total now:', totalAfter);
       
-      // Transaction'ı bitir - mümkünse her durumda dene
+      // Transaction'ı bitir
       if (InAppPurchases && !this.isMockMode) {
         try {
           await InAppPurchases.finishTransactionAsync(purchase, true);
           console.log('✅ Transaction finished for:', purchase.productId);
         } catch (finishErr) {
           console.log('⚠️ finishTransactionAsync failed:', finishErr?.message || String(finishErr));
-        }
-        
-        // Ek olarak: Tüm pending transactions'ları temizle
-        try {
-          console.log('🧹 Cleaning all pending transactions after purchase...');
-          const history = await InAppPurchases.getPurchaseHistoryAsync();
-          if (history && history.results && history.results.length > 0) {
-            for (const pendingPurchase of history.results) {
-              try {
-                await InAppPurchases.finishTransactionAsync(pendingPurchase, true);
-                console.log('✅ Cleaned pending transaction:', pendingPurchase.productId);
-              } catch (e) {
-                console.log('⚠️ Could not clean pending transaction:', e.message);
-              }
-            }
-          }
-        } catch (cleanupErr) {
-          console.log('⚠️ Cleanup failed:', cleanupErr.message);
         }
       } else {
         console.log('⚠️ finishTransactionAsync skipped (mock mode or no IAP module)');
