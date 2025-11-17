@@ -175,6 +175,27 @@ class CleanIAPService {
       
       console.log('✅ Using REAL IAP mode');
 
+      // AGRESIF: Purchase öncesi tüm pending transactions'ları temizle
+      try {
+        console.log('🧹 Aggressively cleaning ALL pending transactions before purchase...');
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        if (history && history.results && history.results.length > 0) {
+          console.log('📜 Found pending transactions:', history.results.length);
+          for (const pendingPurchase of history.results) {
+            try {
+              await InAppPurchases.finishTransactionAsync(pendingPurchase, true);
+              console.log('✅ Finished pending transaction:', pendingPurchase.productId);
+            } catch (e) {
+              console.log('⚠️ Could not finish transaction:', e.message);
+            }
+          }
+        } else {
+          console.log('✅ No pending transactions found');
+        }
+      } catch (cleanupErr) {
+        console.log('⚠️ Pre-purchase cleanup failed:', cleanupErr.message);
+      }
+
       // Gerçek purchase
       console.log('💳 Starting real purchase...');
       const result = await InAppPurchases.purchaseItemAsync(productId);
@@ -200,47 +221,15 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // Result boşsa ama responseCode OK (1) ise - manuel olarak purchase oluştur ve işle
-      if (result && (result.responseCode === InAppPurchases.IAPResponseCode.OK || result.responseCode === 1)) {
-        console.log('⚠️ No results but responseCode is OK - creating manual purchase object');
-        
-        // Manuel purchase objesi oluştur
-        const manualPurchase = {
-          productId: productId,
-          transactionDate: Date.now(),
-          acknowledged: false
-        };
-        
-        console.log('🔄 Processing manual purchase:', manualPurchase);
-        await this.handlePurchaseSuccess(manualPurchase);
-        
-        // Kredileri kontrol et
-        const totalAfter = await CreditService.getCredits();
-        return { success: true, result, totalCredits: totalAfter };
+      // Result boş veya results yok - Listener'dan gelecek
+      // responseCode kontrolü - sadece başarılı durumda devam et
+      if (result && result.responseCode !== InAppPurchases.IAPResponseCode.OK && result.responseCode !== 1) {
+        console.log('❌ Purchase failed with responseCode:', result.responseCode);
+        throw new Error('Purchase failed');
       }
       
-      // responseCode undefined ise - Apple ödemeyi onayladı ama result düzgün dönmedi
-      // Bu durumda da manuel purchase oluştur
-      if (!result || result.responseCode === undefined) {
-        console.log('⚠️ Result is empty or responseCode undefined - assuming success and creating manual purchase');
-        
-        // Manuel purchase objesi oluştur
-        const manualPurchase = {
-          productId: productId,
-          transactionDate: Date.now(),
-          acknowledged: false
-        };
-        
-        console.log('🔄 Processing manual purchase (undefined response):', manualPurchase);
-        await this.handlePurchaseSuccess(manualPurchase);
-        
-        // Kredileri kontrol et
-        const totalAfter = await CreditService.getCredits();
-        return { success: true, result, totalCredits: totalAfter };
-      }
-      
-      // Hiçbir şey yoksa listener'dan gelecek
-      console.log('⚠️ No immediate results - waiting for listener');
+      console.log('⏳ No immediate results - listener will handle the purchase');
+      // Listener kredileri ekleyecek, burada başarı dön
       const totalAfter = await CreditService.getCredits();
       return { success: true, result, totalCredits: totalAfter };
 
