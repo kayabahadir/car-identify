@@ -1,6 +1,5 @@
 import CreditService from './creditService';
 import ReceiptValidationService from './receiptValidationService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
 // IAP modülünü conditionally import et
@@ -176,15 +175,17 @@ class CleanIAPService {
       
       console.log('✅ Using REAL IAP mode');
 
-      // Mevcut kredileri kaydet (listener kontrolü için)
-      const creditsBefore = await CreditService.getCredits();
-      await AsyncStorage.setItem('credits_before_purchase', creditsBefore.toString());
-
       // Gerçek purchase
       console.log('💳 Starting real purchase...');
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
+      
+      // Önce cancel durumunu kontrol et
+      if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+        console.log('❌ User canceled the purchase');
+        throw new Error('Purchase canceled');
+      }
       
       // Eğer result.results varsa ve içinde purchase varsa, hemen işle
       if (result && result.results && result.results.length > 0) {
@@ -199,68 +200,16 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // USER_CANCELED durumunu kontrol et
-      if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-        console.log('❌ User canceled the purchase');
-        throw new Error('Purchase canceled by user');
-      }
-      
-      // responseCode undefined veya result boş ise - Bu cancel durumu
-      if (!result || result.responseCode === undefined) {
-        console.log('❌ Result is empty or responseCode undefined - user likely canceled');
-        throw new Error('Purchase canceled');
-      }
-      
-      // Diğer hata kodlarını kontrol et
-      if (result.responseCode !== InAppPurchases.IAPResponseCode.OK) {
+      // Result boşsa veya results yoksa - bu durumda listener'dan gelecek
+      // Ama eğer responseCode başarısız ise hata fırlat
+      if (result && result.responseCode !== InAppPurchases.IAPResponseCode.OK && result.responseCode !== 1) {
         console.log('❌ Purchase failed with responseCode:', result.responseCode);
-        throw new Error('Purchase failed with code: ' + result.responseCode);
+        throw new Error('Purchase failed');
       }
       
-      // responseCode OK ama results boş - Apple bazı durumlarda boş döndürür
-      // Listener çalışmazsa kredi eklenmez, bu yüzden manuel işle
-      console.log('⚠️ responseCode OK but results empty - processing manually');
-      console.log('⚠️ This happens when Apple returns success without immediate transaction data');
-      
-      // Önce listener'ı bekle (kısa süre)
-      console.log('⏳ Waiting for listener to process (2 seconds)...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Listener işledi mi kontrol et
-      const creditsAfterWait = await CreditService.getCredits();
-      const creditsBeforePurchase = await AsyncStorage.getItem('credits_before_purchase');
-      
-      if (creditsBeforePurchase && creditsAfterWait > parseInt(creditsBeforePurchase)) {
-        console.log('✅ Listener already processed the purchase');
-        await AsyncStorage.removeItem('credits_before_purchase');
-        return { success: true, result, totalCredits: creditsAfterWait };
-      }
-      
-      // Listener işlemedi - manuel olarak kredi ekle
-      console.log('⚠️ Listener did not process - adding credits manually');
-      await CreditService.addCredits(packageInfo.credits);
-      
-      // Transaction'ı finish et - Pending kalmasın
-      try {
-        // getPurchaseHistoryAsync ile son transaction'ı bul
-        const history = await InAppPurchases.getPurchaseHistoryAsync();
-        if (history && history.results && history.results.length > 0) {
-          // Son transaction'ı al
-          const latestPurchase = history.results[0];
-          console.log('🔄 Found latest purchase in history:', latestPurchase.productId);
-          
-          // Eğer bu bizim ürünümüzse finish et
-          if (latestPurchase.productId === productId) {
-            await InAppPurchases.finishTransactionAsync(latestPurchase, true);
-            console.log('✅ Transaction finished successfully');
-          }
-        }
-      } catch (finishError) {
-        console.error('⚠️ Could not finish transaction:', finishError.message);
-      }
-      
+      // Listener'dan gelecek - bekle
+      console.log('⚠️ No immediate results - waiting for listener');
       const totalAfter = await CreditService.getCredits();
-      await AsyncStorage.removeItem('credits_before_purchase');
       return { success: true, result, totalCredits: totalAfter };
 
     } catch (error) {
@@ -320,16 +269,6 @@ class CleanIAPService {
         return;
       }
 
-      // Duplicate check - aynı transaction ID'yi iki kez işleme
-      const lastProcessedTransaction = await AsyncStorage.getItem('last_processed_transaction');
-      const currentTransactionId = purchase.transactionIdentifier || purchase.orderId || `${purchase.productId}_${Date.now()}`;
-      
-      if (lastProcessedTransaction === currentTransactionId) {
-        console.log('⚠️ Transaction already processed:', currentTransactionId);
-        console.log('⚠️ Skipping duplicate credit addition');
-        return;
-      }
-
       // Receipt validation yap (eğer enable ise)
       let validationResult = { success: true }; // Default success
       
@@ -368,9 +307,6 @@ class CleanIAPService {
       await CreditService.addCredits(packageInfo.credits);
       const totalAfter = await CreditService.getCredits();
       console.log('✅ Credits added successfully. Total now:', totalAfter);
-      
-      // Transaction ID'yi kaydet (duplicate önlemek için)
-      await AsyncStorage.setItem('last_processed_transaction', currentTransactionId);
       
       // Transaction'ı bitir - mümkünse her durumda dene
       if (InAppPurchases && !this.isMockMode) {

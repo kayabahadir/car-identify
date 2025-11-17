@@ -2,7 +2,6 @@
 // SECURITY: Do not hardcode secrets. Use EAS secrets/env. Keys in client apps are inherently exposable.
 
 import CreditService from './creditService';
-import { Alert } from 'react-native';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
 const CLIENT_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN;
@@ -11,17 +10,6 @@ const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const OPENAI_API_URL = USE_PROXY
   ? `${API_BASE}/api/identify`
   : 'https://api.openai.com/v1/chat/completions';
-
-// DEBUG: Configuration - will be shown via alert when needed
-const DEBUG_CONFIG = {
-  API_BASE: API_BASE || 'undefined',
-  USE_PROXY: USE_PROXY,
-  OPENAI_API_URL: OPENAI_API_URL,
-  HAS_OPENAI_KEY: !!OPENAI_API_KEY
-};
-
-// Log for development
-console.log('🔧 OpenAI Service Configuration:', DEBUG_CONFIG);
 
 // Convert new engineOptions format to legacy format for UI compatibility
 export const convertToLegacyFormat = (vehicleData) => {
@@ -50,18 +38,6 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
   
   if (!USE_PROXY && !OPENAI_API_KEY) {
     console.error('❌ Neither proxy nor API key configured!');
-    
-    // Show debug alert for troubleshooting
-    Alert.alert(
-      '🔍 Debug Info',
-      `Config Check:\n\n` +
-      `API_BASE: ${API_BASE || 'undefined'}\n` +
-      `USE_PROXY: ${USE_PROXY}\n` +
-      `HAS_KEY: ${!!OPENAI_API_KEY}\n\n` +
-      `❌ Neither configured!`,
-      [{ text: 'OK' }]
-    );
-    
     throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
   }
 
@@ -74,17 +50,6 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
 
   try {
     console.log('✅ Starting analysis with proxy:', USE_PROXY);
-    
-    // Show debug alert at start of analysis
-    Alert.alert(
-      '🔍 Analysis Debug',
-      `Starting Analysis:\n\n` +
-      `API_BASE: ${API_BASE || 'undefined'}\n` +
-      `USE_PROXY: ${USE_PROXY}\n` +
-      `URL: ${OPENAI_API_URL}\n` +
-      `Mode: ${USE_PROXY ? 'Proxy' : 'Direct'}`,
-      [{ text: 'Continue' }]
-    );
     
     // Determine base64: prefer provided base64, fallback to reading from uri
     let base64Image = imageSource?.imageBase64;
@@ -247,28 +212,8 @@ FORMAT RULES:
     
     if (!response.ok) {
       console.error('❌ Upstream error:', response.status, rawBody?.slice(0,200));
-      
-      // Show error debug alert
-      Alert.alert(
-        '🔍 API Error Debug',
-        `Response Error:\n\n` +
-        `Status: ${response.status}\n` +
-        `URL: ${OPENAI_API_URL}\n\n` +
-        `Response:\n${rawBody?.slice(0, 150)}...`,
-        [{ text: 'OK' }]
-      );
-      
       throw new Error(`Upstream error ${response.status}: ${rawBody?.slice(0,200) || 'Unknown error'}`);
     }
-    
-    // Show success debug alert
-    Alert.alert(
-      '🔍 Response Debug',
-      `✅ Success!\n\n` +
-      `Status: ${response.status}\n` +
-      `Preview: ${rawBody?.slice(0, 100)}...`,
-      [{ text: 'Continue' }]
-    );
 
     let data;
     try {
