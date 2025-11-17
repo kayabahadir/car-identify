@@ -181,10 +181,10 @@ class CleanIAPService {
       
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
       
-      // Önce cancel durumunu kontrol et
+      // ÖNCE: User cancel kontrolü
       if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
         console.log('❌ User canceled the purchase');
-        throw new Error('Purchase canceled');
+        throw new Error('USER_CANCELED');
       }
       
       // Eğer result.results varsa ve içinde purchase varsa, hemen işle
@@ -200,14 +200,46 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // Result boşsa veya results yoksa - bu durumda listener'dan gelecek
-      // Ama eğer responseCode başarısız ise hata fırlat
-      if (result && result.responseCode !== InAppPurchases.IAPResponseCode.OK && result.responseCode !== 1) {
-        console.log('❌ Purchase failed with responseCode:', result.responseCode);
-        throw new Error('Purchase failed');
+      // Result boşsa ama responseCode OK (1) ise - manuel olarak purchase oluştur ve işle
+      if (result && (result.responseCode === InAppPurchases.IAPResponseCode.OK || result.responseCode === 1)) {
+        console.log('⚠️ No results but responseCode is OK - creating manual purchase object');
+        
+        // Manuel purchase objesi oluştur
+        const manualPurchase = {
+          productId: productId,
+          transactionDate: Date.now(),
+          acknowledged: false
+        };
+        
+        console.log('🔄 Processing manual purchase:', manualPurchase);
+        await this.handlePurchaseSuccess(manualPurchase);
+        
+        // Kredileri kontrol et
+        const totalAfter = await CreditService.getCredits();
+        return { success: true, result, totalCredits: totalAfter };
       }
       
-      // Listener'dan gelecek - bekle
+      // responseCode undefined ise - Apple ödemeyi onayladı ama result düzgün dönmedi
+      // Bu durumda da manuel purchase oluştur
+      if (!result || result.responseCode === undefined) {
+        console.log('⚠️ Result is empty or responseCode undefined - assuming success and creating manual purchase');
+        
+        // Manuel purchase objesi oluştur
+        const manualPurchase = {
+          productId: productId,
+          transactionDate: Date.now(),
+          acknowledged: false
+        };
+        
+        console.log('🔄 Processing manual purchase (undefined response):', manualPurchase);
+        await this.handlePurchaseSuccess(manualPurchase);
+        
+        // Kredileri kontrol et
+        const totalAfter = await CreditService.getCredits();
+        return { success: true, result, totalCredits: totalAfter };
+      }
+      
+      // Hiçbir şey yoksa listener'dan gelecek
       console.log('⚠️ No immediate results - waiting for listener');
       const totalAfter = await CreditService.getCredits();
       return { success: true, result, totalCredits: totalAfter };

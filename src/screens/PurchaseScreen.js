@@ -265,7 +265,7 @@ const PurchaseScreen = ({ navigation }) => {
       setSelectedPackage(null);
       
       // User cancel etmediyse error göster
-      if (!error.message?.includes('cancel')) {
+      if (!error.message?.includes('cancel') && !error.message?.includes('USER_CANCELED')) {
         Alert.alert(
           'Satın Alma Hatası',
           'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
