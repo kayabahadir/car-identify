@@ -70,14 +70,51 @@ class CleanIAPService {
       // IAP'ı bağla
       await InAppPurchases.connectAsync();
       
+      // STUCK TRANSACTION TEMİZLİĞİ - ChatGPT önerisi
+      // Sadece ilk kez, consumable products için
+      try {
+        console.log('🧹 Checking for stuck transactions...');
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        
+        if (history && history.results && history.results.length > 0) {
+          console.log('📜 Found transactions in history:', history.results.length);
+          
+          for (const purchase of history.results) {
+            // Eğer acknowledged false ise (işlenmemiş), finish et
+            if (purchase.acknowledged === false) {
+              console.log('🔄 Finishing stuck transaction:', purchase.productId);
+              try {
+                await InAppPurchases.finishTransactionAsync(purchase, false);
+                console.log('✅ Stuck transaction finished:', purchase.productId);
+              } catch (finishErr) {
+                console.log('⚠️ Could not finish stuck transaction:', finishErr.message);
+              }
+            } else {
+              console.log('✓ Transaction already acknowledged:', purchase.productId);
+            }
+          }
+        } else {
+          console.log('✅ No stuck transactions found');
+        }
+      } catch (historyErr) {
+        console.log('⚠️ Could not check purchase history:', historyErr.message);
+      }
+      
       // Purchase listener kur - HER SEFERINDE yeniden
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('🎧 Purchase listener triggered:', { responseCode, results, errorCode });
         
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
           for (const purchase of results) {
-            console.log('🎯 Processing purchase:', purchase);
-            await this.handlePurchaseSuccess(purchase);
+            console.log('🎯 Processing purchase:', JSON.stringify(purchase, null, 2));
+            
+            // ChatGPT önerisi: acknowledged ve purchaseState kontrolü
+            if (purchase.acknowledged === false) {
+              console.log('✅ Purchase not yet acknowledged, processing...');
+              await this.handlePurchaseSuccess(purchase);
+            } else {
+              console.log('⚠️ Purchase already acknowledged, skipping listener processing');
+            }
           }
         } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
           console.log('❌ User canceled purchase');
@@ -202,15 +239,26 @@ class CleanIAPService {
       if (!result || result.responseCode === undefined) {
         console.log('⚠️ responseCode is undefined - stuck transaction detected!');
         
-        // STUCK TRANSACTION DURUMU - Sandbox hesabı sorunu
-        // Bu durumda ASLA kredi eklemeyiz çünkü:
-        // 1. User cancel etmiş olabilir
-        // 2. Aynı eski transaction sürekli restore ediliyor olabilir
-        
+        // Stuck transaction'ları temizledik, kullanıcıya tekrar deneme önerisi
         Alert.alert(
           '⚠️ Satın Alma Sorunu',
-          'Sandbox hesabınızda takılı kalmış transaction var.\n\nÇÖZÜM:\n1. iPhone Ayarlar → App Store\n2. Sandbox Account → Oturumu Kapat\n3. Yeni bir sandbox hesabı ile giriş yapın\n\nBu sorun production\'da olmayacaktır.',
-          [{ text: 'Anladım' }]
+          'Takılı kalmış transaction tespit edildi ve temizlendi.\n\n' +
+          'ÇÖZÜM:\n' +
+          '1. Uygulamayı tamamen kapatın\n' +
+          '2. Tekrar açın ve satın almayı tekrar deneyin\n\n' +
+          'Sorun devam ederse:\n' +
+          '• iPhone Ayarlar → App Store → Oturumu Kapatın\n' +
+          '• Telefonu yeniden başlatın\n' +
+          '• Tekrar giriş yapın',
+          [
+            { 
+              text: 'Tamam', 
+              onPress: () => {
+                // Uygulamayı yeniden başlatmayı önermek için
+                console.log('User acknowledged stuck transaction cleanup');
+              }
+            }
+          ]
         );
         
         console.log('❌ responseCode undefined - NOT processing to prevent duplicate credits');
@@ -354,9 +402,11 @@ class CleanIAPService {
       console.log('✅ Credits added successfully. Total now:', totalAfter);
       
       // Transaction'ı bitir
+      // ChatGPT önerisi: Consumable için false kullan
       if (InAppPurchases && !this.isMockMode) {
         try {
-          await InAppPurchases.finishTransactionAsync(purchase, true);
+          // İkinci parametre: consumeImmediately = false (consumable için)
+          await InAppPurchases.finishTransactionAsync(purchase, false);
           console.log('✅ Transaction finished for:', purchase.productId);
         } catch (finishErr) {
           console.log('⚠️ finishTransactionAsync failed:', finishErr?.message || String(finishErr));
