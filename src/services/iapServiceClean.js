@@ -1,6 +1,7 @@
 import CreditService from './creditService';
 import ReceiptValidationService from './receiptValidationService';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
@@ -161,15 +162,22 @@ class CleanIAPService {
       
       console.log('✅ Purchase API result:', JSON.stringify(result, null, 2));
       
-      // DEBUG: Result'ı göster
-      const debugMsg = `responseCode: ${result?.responseCode}\nresults: ${result?.results?.length || 0}\nerrorCode: ${result?.errorCode || 'none'}\n\nAnalysis:\n${
-        result?.responseCode === undefined ? '⚠️ UNDEFINED - Stuck transaction!' : 
-        result?.responseCode === 0 ? '✅ OK' :
-        result?.responseCode === 2 ? '❌ USER_CANCELED' :
-        '⚠️ Unknown: ' + result?.responseCode
-      }`;
-      
-      Alert.alert('DEBUG: Purchase Result', debugMsg, [{ text: 'OK' }]);
+      // DEBUG: Result'ı göster (sadece development'da veya stuck transaction'da)
+      if (__DEV__ || result?.responseCode === undefined) {
+        const debugMsg = `responseCode: ${result?.responseCode}\nresults: ${result?.results?.length || 0}\nerrorCode: ${result?.errorCode || 'none'}\n\nAnalysis:\n${
+          result?.responseCode === undefined ? '⚠️ UNDEFINED - Stuck transaction!' : 
+          result?.responseCode === 0 ? '✅ OK' :
+          result?.responseCode === 2 ? '❌ USER_CANCELED' :
+          '⚠️ Unknown: ' + result?.responseCode
+        }`;
+        
+        console.log('📊 Purchase Result Debug:', debugMsg);
+        
+        // Sadece stuck transaction durumunda alert göster (production'da)
+        if (!__DEV__ && result?.responseCode === undefined) {
+          Alert.alert('DEBUG: Purchase Result', debugMsg, [{ text: 'OK' }]);
+        }
+      }
       
       // ÖNCE: User cancel kontrolü
       if (result && result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
@@ -190,38 +198,23 @@ class CleanIAPService {
         return { success: true, result, totalCredits: totalAfter };
       }
       
-      // ÖNEMLİ: responseCode undefined ise - Stuck transaction olabilir
+      // ÖNEMLİ: responseCode undefined ise - Bu büyük ihtimalle stuck transaction
       if (!result || result.responseCode === undefined) {
-        console.log('⚠️ responseCode is undefined - checking for pending transactions...');
+        console.log('⚠️ responseCode is undefined - stuck transaction detected!');
         
-        try {
-          const history = await InAppPurchases.getPurchaseHistoryAsync();
-          console.log('📜 Purchase history check:', history);
-          
-          if (history && history.results && history.results.length > 0) {
-            console.log('🔄 Found pending transactions, processing...');
-            
-            // Son transaction'ı al (en yeni)
-            const latestPurchase = history.results[0];
-            
-            // Eğer bu transaction bizim ürünümüz ise, işle
-            if (latestPurchase.productId === productId) {
-              console.log('✅ Processing stuck transaction for:', productId);
-              await this.handlePurchaseSuccess(latestPurchase);
-              
-              const totalAfter = await CreditService.getCredits();
-              return { success: true, result, totalCredits: totalAfter };
-            } else {
-              console.log('⚠️ Latest pending transaction is for different product:', latestPurchase.productId);
-            }
-          }
-        } catch (historyErr) {
-          console.log('❌ Could not check purchase history:', historyErr.message);
-        }
+        // STUCK TRANSACTION DURUMU - Sandbox hesabı sorunu
+        // Bu durumda ASLA kredi eklemeyiz çünkü:
+        // 1. User cancel etmiş olabilir
+        // 2. Aynı eski transaction sürekli restore ediliyor olabilir
         
-        // Pending transaction bulunamadı, hata fırlat
-        console.log('❌ responseCode undefined and no pending transactions found');
-        throw new Error('Purchase failed - responseCode undefined');
+        Alert.alert(
+          '⚠️ Satın Alma Sorunu',
+          'Sandbox hesabınızda takılı kalmış transaction var.\n\nÇÖZÜM:\n1. iPhone Ayarlar → App Store\n2. Sandbox Account → Oturumu Kapat\n3. Yeni bir sandbox hesabı ile giriş yapın\n\nBu sorun production\'da olmayacaktır.',
+          [{ text: 'Anladım' }]
+        );
+        
+        console.log('❌ responseCode undefined - NOT processing to prevent duplicate credits');
+        throw new Error('Purchase failed - responseCode undefined (stuck transaction)');
       }
       
       // Result boş veya results yok - Listener'dan gelecek
@@ -306,10 +299,18 @@ class CleanIAPService {
   static async handlePurchaseSuccess(purchase) {
     try {
       console.log('🎉 Purchase success:', purchase.productId);
+      console.log('📋 Purchase object:', JSON.stringify(purchase, null, 2));
       
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
       if (!packageInfo) {
         console.error('❌ Unknown product:', purchase.productId);
+        return;
+      }
+      
+      // Ek güvenlik: acknowledged kontrolü (Expo'da)
+      // Eğer purchase zaten acknowledged ise (işlenmiş), tekrar işleme
+      if (purchase.acknowledged === true) {
+        console.log('⚠️ Purchase already acknowledged, skipping...');
         return;
       }
 
