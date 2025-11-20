@@ -224,21 +224,25 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const handlePurchase = async (packageInfo) => {
-    console.log('🎯 handlePurchase called with:', packageInfo);
-    setLoading(true);
-    setSelectedPackage(packageInfo.id);
-
+    console.log('handlePurchase called:', packageInfo.id);
+    
     try {
+      setLoading(true);
+      setSelectedPackage(packageInfo.id);
+      
+      console.log('Calling CleanIAPService.purchaseProduct...');
+      
       // Basit purchase akışı
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
-      console.log('✅ Purchase result:', result);
-      console.log('📊 Total credits from result:', result?.totalCredits);
+      console.log('Purchase result:', result);
       
       // FirstTime service'i işaretle
-      await FirstTimeService.markFreeAnalysisUsed();
-      
-      console.log('✅ Purchase process completed');
+      try {
+        await FirstTimeService.markFreeAnalysisUsed();
+      } catch (e) {
+        console.log('FirstTime error:', e);
+      }
       
       // Loading'i kapat
       setLoading(false);
@@ -251,14 +255,13 @@ const PurchaseScreen = ({ navigation }) => {
         [{ 
           text: language === 'tr' ? 'Devam' : 'Continue',
           onPress: () => {
-            // Home'a dön ve kredileri yenile
             navigation.navigate('Home', { forceRefresh: Date.now() });
           }
         }]
       );
 
     } catch (error) {
-      console.error('❌ Purchase error:', error);
+      console.error('Purchase error:', error);
       
       // Loading'i kapat
       setLoading(false);
@@ -266,16 +269,9 @@ const PurchaseScreen = ({ navigation }) => {
       
       // User cancel etmediyse error göster
       if (!error.message?.includes('cancel') && !error.message?.includes('USER_CANCELED')) {
-        let errorMessage = 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.';
-        
-        // responseCode undefined hatası için özel mesaj
-        if (error.message?.includes('responseCode undefined')) {
-          errorMessage = 'Satın alma işlemi tamamlanamadı.\n\nÖneri: iPhone Ayarlar > App Store > Sandbox Account > Oturumu Kapatın ve yeni bir sandbox hesabı ile tekrar deneyin.';
-        }
-        
         Alert.alert(
           'Satın Alma Hatası',
-          errorMessage,
+          'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
           [{ text: 'Tamam' }]
         );
       }
