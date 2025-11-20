@@ -236,60 +236,49 @@ const PurchaseScreen = ({ navigation }) => {
       return;
     }
     
-    console.log('handlePurchase called:', packageInfo.id);
+    console.log('handlePurchase:', packageInfo.id);
     
     setLoading(true);
     setSelectedPackage(packageInfo.id);
     
     try {
-      console.log('Calling CleanIAPService.purchaseProduct...');
-      
-      // Basit purchase akışı
+      // SIMPLE PURCHASE CALL
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
       console.log('Purchase result:', result);
       
-      // FirstTime service'i işaretle (opsiyonel)
-      setTimeout(() => {
-        FirstTimeService.markFreeAnalysisUsed().catch(e => {
-          console.log('FirstTime error (ignored):', e);
-        });
-      }, 100);
+      // Mark first time used
+      FirstTimeService.markFreeAnalysisUsed().catch(() => {});
       
-      // Loading'i kapat
+      // Close loading
       setLoading(false);
       setSelectedPackage(null);
       
-      // Success alert göster
-      setTimeout(() => {
-        Alert.alert(
-          '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
-          `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
-          [{ 
-            text: language === 'tr' ? 'Devam' : 'Continue',
-            onPress: () => {
-              navigation.navigate('Home', { forceRefresh: Date.now() });
-            }
-          }]
-        );
-      }, 300);
+      // Show success
+      Alert.alert(
+        '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
+        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+        [{ 
+          text: language === 'tr' ? 'Devam' : 'Continue',
+          onPress: () => {
+            navigation.navigate('Home', { forceRefresh: Date.now() });
+          }
+        }]
+      );
 
     } catch (error) {
       console.error('Purchase error:', error);
       
-      // Loading'i kapat
       setLoading(false);
       setSelectedPackage(null);
       
-      // User cancel etmediyse error göster
-      if (!error.message?.includes('cancel') && !error.message?.includes('USER_CANCELED')) {
-        setTimeout(() => {
-          Alert.alert(
-            'Satın Alma Hatası',
-            'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
-            [{ text: 'Tamam' }]
-          );
-        }, 300);
+      // Show error (not for cancel)
+      if (!error.message?.includes('cancel')) {
+        Alert.alert(
+          'Satın Alma Hatası',
+          'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
+          [{ text: 'Tamam' }]
+        );
       }
     }
   };
