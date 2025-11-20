@@ -56,22 +56,28 @@ class CleanIAPService {
       
       // Listener - SADECE BU!
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
-        console.log('🎧 Listener triggered:', { responseCode, results: results?.length || 0, errorCode });
+        console.log('🎧 LISTENER TRIGGERED:', { responseCode, results: results?.length || 0, errorCode });
         
-        // DEBUG: Listener tetiklendi
-        Alert.alert(
-          'DEBUG: LISTENER Tetiklendi',
-          `responseCode: ${responseCode}\nresults: ${results?.length || 0}\nerrorCode: ${errorCode || 'none'}`,
-          [{ text: 'OK' }]
-        );
+        // ALERT: Listener tetiklendi
+        setTimeout(() => {
+          Alert.alert(
+            '🎧 LISTENER',
+            `responseCode: ${responseCode}\nresults: ${results?.length || 0}\nerrorCode: ${errorCode || 'none'}`,
+            [{ text: 'OK' }]
+          );
+        }, 100);
         
         // Başarılı purchase
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-          Alert.alert(
-            'DEBUG: LISTENER - OK',
-            `Purchase sayısı: ${results.length}\nİşlenecek...`,
-            [{ text: 'OK' }]
-          );
+          console.log('✅ LISTENER - OK: Purchase sayısı:', results.length);
+          
+          setTimeout(() => {
+            Alert.alert(
+              '✅ LISTENER - OK',
+              `Purchase sayısı: ${results.length}\nİşleniyor...`,
+              [{ text: 'OK' }]
+            );
+          }, 500);
           
           for (const purchase of results) {
             await this.processPurchase(purchase);
@@ -79,21 +85,27 @@ class CleanIAPService {
         } 
         // Cancel
         else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-          console.log('❌ User canceled');
-          Alert.alert(
-            'DEBUG: LISTENER - CANCEL',
-            'User canceled the purchase',
-            [{ text: 'OK' }]
-          );
+          console.log('❌ LISTENER - USER_CANCELED');
+          
+          setTimeout(() => {
+            Alert.alert(
+              '❌ CANCEL',
+              'Kullanıcı satın almayı iptal etti',
+              [{ text: 'OK' }]
+            );
+          }, 500);
         }
         // Diğer
         else {
-          console.log('⚠️ Other response:', responseCode, errorCode);
-          Alert.alert(
-            'DEBUG: LISTENER - OTHER',
-            `responseCode: ${responseCode}\nerrorCode: ${errorCode}`,
-            [{ text: 'OK' }]
-          );
+          console.log('⚠️ LISTENER - OTHER:', { responseCode, errorCode });
+          
+          setTimeout(() => {
+            Alert.alert(
+              '⚠️ LISTENER - OTHER',
+              `responseCode: ${responseCode}\nerrorCode: ${errorCode}`,
+              [{ text: 'OK' }]
+            );
+          }, 500);
         }
       });
 
@@ -112,91 +124,89 @@ class CleanIAPService {
    */
   static async processPurchase(purchase) {
     try {
-      console.log('🎯 Processing:', purchase.productId);
-      console.log('📋 Purchase:', JSON.stringify(purchase, null, 2));
+      console.log('🎯 PROCESS BAŞLADI:', purchase.productId);
+      console.log('📋 Purchase object:', JSON.stringify(purchase, null, 2));
       
       // Duplicate check - transaction ID ile
       const txId = purchase.transactionIdentifier || purchase.orderId || `${purchase.productId}_${Date.now()}`;
+      console.log('🆔 Transaction ID:', txId);
+      console.log('✓ acknowledged:', purchase.acknowledged);
       
-      // DEBUG: Purchase info
+      // ALERT: Process başladı
       Alert.alert(
-        'DEBUG: PROCESS Başladı',
-        `Product: ${purchase.productId}\nTx ID: ${txId}\nacknowledged: ${purchase.acknowledged}`,
+        '🎯 PROCESS',
+        `Product: ${purchase.productId}\nTx ID: ${txId?.substring(0, 20)}...\nacknowledged: ${purchase.acknowledged}`,
         [{ text: 'OK' }]
       );
       
       if (this.processedTransactions.has(txId)) {
-        console.log('⚠️ Already processed:', txId);
-        Alert.alert(
-          'DEBUG: DUPLICATE',
-          'Bu transaction zaten işlendi!',
-          [{ text: 'OK' }]
-        );
+        console.log('⚠️ DUPLICATE: Bu transaction zaten işlendi!');
+        Alert.alert('⚠️ DUPLICATE', 'Bu transaction zaten işlendi!', [{ text: 'OK' }]);
         return;
       }
       
       // Acknowledged check
       if (purchase.acknowledged === true) {
-        console.log('⚠️ Already acknowledged:', txId);
-        Alert.alert(
-          'DEBUG: ACKNOWLEDGED',
-          'Purchase zaten acknowledged!',
-          [{ text: 'OK' }]
-        );
+        console.log('⚠️ ACKNOWLEDGED: Purchase zaten acknowledged!');
+        Alert.alert('⚠️ ACKNOWLEDGED', 'Purchase zaten acknowledged!', [{ text: 'OK' }]);
         return;
       }
       
       // Product check
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
       if (!packageInfo) {
-        console.error('❌ Unknown product:', purchase.productId);
-        Alert.alert(
-          'DEBUG: UNKNOWN PRODUCT',
-          `Product ID: ${purchase.productId}`,
-          [{ text: 'OK' }]
-        );
+        console.error('❌ UNKNOWN PRODUCT:', purchase.productId);
+        Alert.alert('❌ UNKNOWN PRODUCT', purchase.productId, [{ text: 'OK' }]);
         return;
       }
 
       // Kredi öncesi
       const creditsBefore = await CreditService.getCredits();
+      console.log('💰 Kredi öncesi:', creditsBefore);
 
       // Kredi ekle
       await CreditService.addCredits(packageInfo.credits);
-      console.log('✅ Credits added:', packageInfo.credits);
+      console.log('➕ Kredi ekleniyor:', packageInfo.credits);
       
       const creditsAfter = await CreditService.getCredits();
+      console.log('💰 Kredi sonrası:', creditsAfter);
+      console.log('✅ KREDİ EKLENDİ! Eklenen:', creditsAfter - creditsBefore);
       
-      // DEBUG: Kredi eklendi
+      // ALERT: Kredi eklendi
       Alert.alert(
-        'DEBUG: KREDİ EKLENDİ',
-        `Önceki: ${creditsBefore}\nEklenen: ${packageInfo.credits}\nŞimdiki: ${creditsAfter}`,
+        '✅ KREDİ EKLENDİ',
+        `Önceki: ${creditsBefore}\nEklenen: ${packageInfo.credits}\nYeni: ${creditsAfter}`,
         [{ text: 'OK' }]
       );
       
       // Transaction finish
       await InAppPurchases.finishTransactionAsync(purchase, false);
-      console.log('✅ Transaction finished');
+      console.log('✅ TRANSACTION FİNİSHED');
       
-      // DEBUG: Transaction finish
+      // ALERT: Transaction finished
       Alert.alert(
-        'DEBUG: TRANSACTION FİNİSHED',
-        'Transaction tamamlandı ve kapatıldı.',
+        '✅ TRANSACTION FİNİSHED',
+        'Transaction başarıyla tamamlandı!',
         [{ text: 'OK' }]
       );
       
       // Duplicate prevention
       this.processedTransactions.add(txId);
+      console.log('🔒 Transaction ID kaydedildi (duplicate prevention)');
       
       // Set cleanup (10 dakika sonra temizle)
       setTimeout(() => {
         this.processedTransactions.delete(txId);
+        console.log('🗑️ Transaction ID temizlendi:', txId);
       }, 600000);
       
     } catch (error) {
-      console.error('❌ Process error:', error);
+      console.error('❌ PROCESS HATASI:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       Alert.alert(
-        'DEBUG: PROCESS HATASI',
+        '❌ PROCESS HATASI',
         `Error: ${error.message}`,
         [{ text: 'OK' }]
       );
@@ -233,28 +243,18 @@ class CleanIAPService {
       console.log('🛒 Purchase:', productId);
 
       // DEBUG 1: Purchase başladı
-      Alert.alert(
-        'DEBUG 1: Purchase Başladı',
-        `Product: ${productId}\nInitialized: ${this.isInitialized}`,
-        [{ text: 'OK' }]
-      );
+      console.log('DEBUG 1: Purchase Başladı', productId, this.isInitialized);
 
       // Initialize (ilk kez)
       if (!this.isInitialized) {
         await this.initialize();
-        
-        // DEBUG 2: Initialize tamamlandı
-        Alert.alert(
-          'DEBUG 2: Initialize',
-          `Initialized: ${this.isInitialized}\nMock Mode: ${this.isMockMode}`,
-          [{ text: 'OK' }]
-        );
+        console.log('DEBUG 2: Initialize completed', this.isInitialized, this.isMockMode);
       }
 
       // Product check
       const packageInfo = this.CREDIT_PACKAGES[productId];
       if (!packageInfo) {
-        Alert.alert('DEBUG: HATA', 'Unknown product: ' + productId, [{ text: 'OK' }]);
+        console.error('DEBUG: HATA - Unknown product:', productId);
         throw new Error('Unknown product: ' + productId);
       }
 
@@ -268,23 +268,45 @@ class CleanIAPService {
       }
 
       // DEBUG 3: purchaseItemAsync çağrılacak
-      const creditsBefore = await CreditService.getCredits();
+      let creditsBefore = 0;
+      try {
+        creditsBefore = await CreditService.getCredits();
+        console.log('DEBUG 3: Mevcut kredi:', creditsBefore);
+      } catch (e) {
+        console.error('DEBUG 3: Kredi alınamadı:', e);
+      }
+
+      // ALERT: purchaseItemAsync çağrılacak
       Alert.alert(
-        'DEBUG 3: purchaseItemAsync Çağrılacak',
-        `Product: ${productId}\nMevcut Kredi: ${creditsBefore}`,
+        '💳 Purchase Başlatılıyor',
+        `Product: ${productId}\nMevcut Kredi: ${creditsBefore}\n\nApple ödeme ekranı açılacak...`,
         [{ text: 'OK' }]
       );
 
       // GERÇEK PURCHASE - Sadece bu!
       console.log('💳 Calling purchaseItemAsync...');
-      await InAppPurchases.purchaseItemAsync(productId);
       
-      // DEBUG 4: purchaseItemAsync tamamlandı
-      Alert.alert(
-        'DEBUG 4: purchaseItemAsync Tamamlandı',
-        'Apple ödeme ekranı kapatıldı.\nListener tetiklenecek...',
-        [{ text: 'OK' }]
-      );
+      try {
+        await InAppPurchases.purchaseItemAsync(productId);
+        console.log('DEBUG 4: purchaseItemAsync tamamlandı');
+        
+        // ALERT: purchaseItemAsync tamamlandı
+        Alert.alert(
+          '✅ Apple Ekranı Kapatıldı',
+          'Listener tetiklenecek...\n(3 saniye bekleniyor)',
+          [{ text: 'OK' }]
+        );
+      } catch (purchaseError) {
+        console.error('DEBUG: purchaseItemAsync hatası:', purchaseError);
+        
+        Alert.alert(
+          '❌ purchaseItemAsync HATASI',
+          `Error: ${purchaseError.message}\nCode: ${purchaseError.code}`,
+          [{ text: 'OK' }]
+        );
+        
+        throw purchaseError;
+      }
       
       // Listener işleyecek, biz sadece bekleyelim
       console.log('⏳ Waiting for listener...');
@@ -293,27 +315,26 @@ class CleanIAPService {
       await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Kredi kontrol
-      const totalAfter = await CreditService.getCredits();
-      console.log('📊 Current credits:', totalAfter);
+      let totalAfter = creditsBefore;
+      try {
+        totalAfter = await CreditService.getCredits();
+        console.log('DEBUG 5: Şimdiki kredi:', totalAfter, 'Eklenen:', totalAfter - creditsBefore);
+      } catch (e) {
+        console.error('DEBUG 5: Kredi alınamadı:', e);
+      }
       
-      // DEBUG 5: Sonuç
+      // ALERT: İşlem tamamlandı
       Alert.alert(
-        'DEBUG 5: İşlem Tamamlandı',
+        '🎉 İŞLEM TAMAMLANDI',
         `Önceki Kredi: ${creditsBefore}\nŞimdiki Kredi: ${totalAfter}\nEklenen: ${totalAfter - creditsBefore}`,
-        [{ text: 'OK' }]
+        [{ text: 'Tamam' }]
       );
       
       return { success: true, totalCredits: totalAfter };
 
     } catch (error) {
       console.error('❌ Purchase failed:', error);
-      
-      // DEBUG: HATA
-      Alert.alert(
-        'DEBUG: HATA',
-        `Error: ${error.message}\nCode: ${error.code}`,
-        [{ text: 'OK' }]
-      );
+      console.error('DEBUG: HATA -', error.message, error.code);
       
       // Cancel
       if (error.code === 'USER_CANCELED' || error.message?.includes('cancel')) {
