@@ -1,5 +1,4 @@
 import CreditService from './creditService';
-import { Alert } from 'react-native';
 
 // IAP modülünü conditionally import et
 let InAppPurchases = null;
@@ -58,19 +57,6 @@ class CleanIAPService {
       InAppPurchases.setPurchaseListener(async ({ responseCode, results, errorCode }) => {
         console.log('LISTENER:', { responseCode, results: results?.length || 0, errorCode });
         
-        // ALERT: Listener - setTimeout ile güvenli
-        setTimeout(() => {
-          try {
-            Alert.alert(
-              'LISTENER',
-              `responseCode: ${responseCode}\nresults: ${results?.length || 0}\nerrorCode: ${errorCode || 'none'}`,
-              [{ text: 'OK' }]
-            );
-          } catch (alertErr) {
-            console.error('Alert error:', alertErr);
-          }
-        }, 100);
-        
         // Başarılı purchase
         if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
           console.log('LISTENER: OK, processing', results.length, 'purchases');
@@ -111,22 +97,12 @@ class CleanIAPService {
       
       if (this.processedTransactions.has(txId)) {
         console.log('DUPLICATE: Already processed');
-        setTimeout(() => {
-          try {
-            Alert.alert('DUPLICATE', 'Transaction zaten işlendi', [{ text: 'OK' }]);
-          } catch (e) {}
-        }, 100);
         return;
       }
       
       // Acknowledged check
       if (purchase.acknowledged === true) {
         console.log('ACKNOWLEDGED: Already acknowledged');
-        setTimeout(() => {
-          try {
-            Alert.alert('ACKNOWLEDGED', 'Purchase zaten acknowledged', [{ text: 'OK' }]);
-          } catch (e) {}
-        }, 100);
         return;
       }
       
@@ -134,11 +110,6 @@ class CleanIAPService {
       const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
       if (!packageInfo) {
         console.error('UNKNOWN PRODUCT:', purchase.productId);
-        setTimeout(() => {
-          try {
-            Alert.alert('UNKNOWN PRODUCT', purchase.productId, [{ text: 'OK' }]);
-          } catch (e) {}
-        }, 100);
         return;
       }
 
@@ -152,19 +123,7 @@ class CleanIAPService {
       
       const creditsAfter = await CreditService.getCredits();
       console.log('Credits after:', creditsAfter);
-      
-      // ALERT: Kredi eklendi - setTimeout ile güvenli
-      setTimeout(() => {
-        try {
-          Alert.alert(
-            'KREDİ EKLENDİ',
-            `Önceki: ${creditsBefore}\nEklenen: ${packageInfo.credits}\nYeni: ${creditsAfter}`,
-            [{ text: 'OK' }]
-          );
-        } catch (alertErr) {
-          console.error('Alert error:', alertErr);
-        }
-      }, 200);
+      console.log('CREDITS ADDED! Total added:', creditsAfter - creditsBefore);
       
       // Transaction finish
       await InAppPurchases.finishTransactionAsync(purchase, false);
@@ -180,13 +139,7 @@ class CleanIAPService {
       
     } catch (error) {
       console.error('PROCESS ERROR:', error);
-      setTimeout(() => {
-        try {
-          Alert.alert('PROCESS ERROR', error.message || 'Bilinmeyen hata', [{ text: 'OK' }]);
-        } catch (alertErr) {
-          console.error('Alert error:', alertErr);
-        }
-      }, 100);
+      console.error('Error message:', error.message);
     }
   }
 
