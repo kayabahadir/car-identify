@@ -164,19 +164,9 @@ const PurchaseScreen = ({ navigation }) => {
     loadCurrentCredits();
     loadIAPProducts();
     
-    // Navigation callback set et
-    CleanIAPService.setNavigationCallback(() => {
-      navigation.navigate('Home', { forceRefresh: Date.now() });
-    });
-    
     navigation.setOptions({
       headerShown: false,
     });
-
-    // Cleanup function
-    return () => {
-      CleanIAPService.setNavigationCallback(null);
-    };
   }, [navigation]);
 
 
@@ -193,28 +183,34 @@ const PurchaseScreen = ({ navigation }) => {
     try {
       console.log('Loading IAP products...');
       
-      // Clean IAP service ile ürünleri yükle
+      // Initialize IAP (safe)
       try {
-        await CleanIAPService.initialize();
-        console.log('IAP initialized in PurchaseScreen');
+        const initResult = await CleanIAPService.initialize();
+        console.log('IAP initialized:', initResult);
       } catch (initError) {
-        console.error('Initialize error in PurchaseScreen:', initError);
-        // Devam et, getProducts fallback kullanacak
+        console.error('Initialize error:', initError);
+        // Continue - will use fallback
       }
       
-      const products = await CleanIAPService.getProducts();
-      
-      console.log('Loaded products:', products.length);
+      // Get products (safe)
+      try {
+        const products = await CleanIAPService.getProducts();
+        console.log('Products loaded:', products?.length || 0);
 
-      if (products && products.length > 0) {
-        setIapProducts(products);
-        console.log('IAP products loaded successfully');
-      } else {
-        console.log('No products found, using fallback');
+        if (products && products.length > 0) {
+          setIapProducts(products);
+          console.log('IAP products set');
+        } else {
+          console.log('No products, using fallback');
+          setFallbackProducts();
+        }
+      } catch (productsError) {
+        console.error('Get products error:', productsError);
         setFallbackProducts();
       }
+      
     } catch (error) {
-      console.error('Error loading IAP products:', error);
+      console.error('Load IAP products error:', error);
       setFallbackProducts();
     }
   };
@@ -231,54 +227,96 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const handlePurchase = async (packageInfo) => {
+    // Validation
     if (!packageInfo || !packageInfo.id) {
       console.error('Invalid packageInfo');
       return;
     }
     
-    console.log('handlePurchase:', packageInfo.id);
+    // Prevent multiple clicks
+    if (loading) {
+      console.log('Already loading, ignoring click');
+      return;
+    }
     
-    setLoading(true);
-    setSelectedPackage(packageInfo.id);
+    console.log('=== handlePurchase START ===');
+    console.log('Package:', packageInfo.id);
+    
+    // Set loading state
+    try {
+      setLoading(true);
+      setSelectedPackage(packageInfo.id);
+    } catch (setStateError) {
+      console.error('setState error:', setStateError);
+      return;
+    }
     
     try {
-      // SIMPLE PURCHASE CALL
+      // Call purchase
+      console.log('Calling purchaseProduct...');
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
       console.log('Purchase result:', result);
       
-      // Mark first time used
-      FirstTimeService.markFreeAnalysisUsed().catch(() => {});
+      // Mark first time (non-blocking)
+      try {
+        FirstTimeService.markFreeAnalysisUsed().catch(() => {});
+      } catch (e) {
+        // Ignore
+      }
       
       // Close loading
-      setLoading(false);
-      setSelectedPackage(null);
+      try {
+        setLoading(false);
+        setSelectedPackage(null);
+      } catch (e) {
+        console.error('setState error:', e);
+      }
       
       // Show success
-      Alert.alert(
-        '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
-        `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
-        [{ 
-          text: language === 'tr' ? 'Devam' : 'Continue',
-          onPress: () => {
-            navigation.navigate('Home', { forceRefresh: Date.now() });
-          }
-        }]
-      );
+      try {
+        Alert.alert(
+          '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
+          `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+          [{ 
+            text: language === 'tr' ? 'Devam' : 'Continue',
+            onPress: () => {
+              try {
+                navigation.navigate('Home', { forceRefresh: Date.now() });
+              } catch (navError) {
+                console.error('Navigation error:', navError);
+              }
+            }
+          }]
+        );
+      } catch (alertError) {
+        console.error('Alert error:', alertError);
+      }
 
     } catch (error) {
-      console.error('Purchase error:', error);
+      console.error('=== handlePurchase ERROR ===');
+      console.error('Error:', error?.message || error);
       
-      setLoading(false);
-      setSelectedPackage(null);
+      // Close loading
+      try {
+        setLoading(false);
+        setSelectedPackage(null);
+      } catch (e) {
+        console.error('setState error:', e);
+      }
       
-      // Show error (not for cancel)
-      if (!error.message?.includes('cancel')) {
-        Alert.alert(
-          'Satın Alma Hatası',
-          'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.',
-          [{ text: 'Tamam' }]
-        );
+      // Show error (not for cancel or İptal edildi)
+      const errorMsg = error?.message || '';
+      if (!errorMsg.includes('cancel') && !errorMsg.includes('İptal edildi')) {
+        try {
+          Alert.alert(
+            language === 'tr' ? 'Satın Alma Hatası' : 'Purchase Error',
+            errorMsg || (language === 'tr' ? 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.' : 'Purchase failed. Please try again.'),
+            [{ text: language === 'tr' ? 'Tamam' : 'OK' }]
+          );
+        } catch (alertError) {
+          console.error('Alert error:', alertError);
+        }
       }
     }
   };

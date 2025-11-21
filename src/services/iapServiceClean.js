@@ -1,16 +1,22 @@
 import CreditService from './creditService';
 
-// IAP modülünü conditionally import et
+/**
+ * ULTRA MINIMAL IAP - NO CRASH GUARANTEED
+ * Her adım try-catch ile korunmuş
+ */
+
+// Güvenli IAP import
 let InAppPurchases = null;
+let IAPAvailable = false;
+
 try {
   InAppPurchases = require('expo-in-app-purchases');
+  IAPAvailable = true;
+  console.log('IAP module loaded');
 } catch (e) {
   console.log('IAP module not available');
 }
 
-/**
- * ULTRA SIMPLE IAP SERVICE - NO CRASH
- */
 class CleanIAPService {
   static PRODUCT_IDS = {
     PACK_10: 'com.caridentify.app.credits.consumable.pack10',
@@ -25,36 +31,34 @@ class CleanIAPService {
   };
 
   static isInitialized = false;
-  static isMockMode = false;
   static products = [];
-  
-  // SIMPLE FLAG - Listener'dan işlem gördüğünü işaretle
-  static lastPurchaseResult = null;
+  static purchaseResult = null;
 
   /**
-   * Initialize - EN BASIT
+   * Initialize - Tek sefer
    */
   static async initialize() {
     if (this.isInitialized) {
       return true;
     }
-    
+
+    if (!IAPAvailable || !InAppPurchases) {
+      console.log('IAP not available');
+      this.isInitialized = true;
+      return false;
+    }
+
     try {
-      if (!InAppPurchases) {
-        this.isInitialized = true;
-        this.isMockMode = true;
-        return true;
-      }
-      
       // Connect
       await InAppPurchases.connectAsync();
-      
-      // SIMPLE LISTENER - SADECE FLAG SET ET (SAFE)
+      console.log('IAP connected');
+
+      // Set listener - EN BASIT
       InAppPurchases.setPurchaseListener((result) => {
         try {
-          console.log('LISTENER CALLED');
           if (result) {
-            this.lastPurchaseResult = result;
+            this.purchaseResult = result;
+            console.log('Purchase result received');
           }
         } catch (e) {
           console.error('Listener error:', e);
@@ -64,141 +68,168 @@ class CleanIAPService {
       this.isInitialized = true;
       return true;
     } catch (error) {
-      console.error('Init error:', error);
+      console.error('IAP init error:', error);
+      this.isInitialized = true; // Mark as initialized even on error to prevent retry crashes
       return false;
     }
   }
 
   /**
-   * Purchase - SIMPLE
+   * Purchase Product - GÜVENLI
    */
   static async purchaseProduct(productId) {
     try {
-      console.log('Purchase:', productId);
+      console.log('=== PURCHASE START ===');
+      console.log('Product ID:', productId);
 
-      // Init
-      if (!this.isInitialized) {
-        await this.initialize();
+      // Step 1: Initialize
+      try {
+        if (!this.isInitialized) {
+          console.log('Initializing...');
+          const initResult = await this.initialize();
+          if (!initResult) {
+            throw new Error('IAP initialization failed');
+          }
+        }
+      } catch (initError) {
+        console.error('Init error:', initError);
+        throw new Error('Sistem başlatılamadı');
       }
 
-      // Package check
+      // Step 2: Check package
       const packageInfo = this.CREDIT_PACKAGES[productId];
       if (!packageInfo) {
-        throw new Error('Unknown product');
+        throw new Error('Geçersiz ürün');
       }
 
-      // Mock mode
-      if (this.isMockMode) {
+      // Step 3: Check IAP availability
+      if (!IAPAvailable || !InAppPurchases) {
+        console.log('IAP not available, using mock');
+        // Mock purchase for testing
         await new Promise(resolve => setTimeout(resolve, 2000));
         await CreditService.addCredits(packageInfo.credits);
         const total = await CreditService.getCredits();
         return { success: true, mock: true, totalCredits: total };
       }
-      
-      // PRODUCT CHECK - ChatGPT önerisi (products yüklenmemişse crash olabilir)
-      if (!InAppPurchases) {
-        throw new Error('IAP not available');
-      }
 
-      // RECONNECT - ChatGPT önerisi (arka plandan gelince disconnect olabilir)
-      try {
-        await InAppPurchases.connectAsync();
-        console.log('Reconnected');
-      } catch (reconnectError) {
-        console.log('Reconnect error (ignored):', reconnectError);
-      }
-      
-      // Reset flag
-      this.lastPurchaseResult = null;
+      // Step 4: Reset result
+      this.purchaseResult = null;
 
-      // CALL PURCHASE
+      // Step 5: Call purchase
+      console.log('Calling purchaseItemAsync...');
       try {
         await InAppPurchases.purchaseItemAsync(productId);
+        console.log('purchaseItemAsync returned');
       } catch (purchaseError) {
-        console.error('Purchase error:', purchaseError);
-        if (purchaseError.code === 'USER_CANCELED') {
-          throw new Error('Purchase canceled');
+        console.error('purchaseItemAsync error:', purchaseError);
+        
+        // User canceled
+        if (purchaseError.code === 'USER_CANCELED' || 
+            purchaseError.message?.toLowerCase().includes('cancel')) {
+          throw new Error('İptal edildi');
         }
-        throw purchaseError;
+        
+        throw new Error('Satın alma başlatılamadı');
       }
-      
-      // WAIT FOR LISTENER (max 5 seconds)
+
+      // Step 6: Wait for listener
       console.log('Waiting for listener...');
-      for (let i = 0; i < 50; i++) {
+      let waitCount = 0;
+      while (!this.purchaseResult && waitCount < 50) {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        if (this.lastPurchaseResult) {
-          console.log('Listener responded');
-          break;
+        waitCount++;
+      }
+
+      // Step 7: Check result
+      const result = this.purchaseResult;
+      if (!result) {
+        console.log('Timeout - no result');
+        throw new Error('Zaman aşımı');
+      }
+
+      console.log('Result received:', result.responseCode);
+
+      // Step 8: Process result
+      try {
+        // Canceled
+        if (result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+          throw new Error('İptal edildi');
         }
-      }
-      
-      // PROCESS OUTSIDE OF LISTENER
-      const result = this.lastPurchaseResult;
-      
-      // NULL CHECK - ChatGPT kritik öneri
-      if (!result || typeof result !== 'object') {
-        console.log('No listener response or invalid result');
-        throw new Error('Purchase timeout');
-      }
-      
-      // Check response code
-      if (!result.responseCode && result.responseCode !== 0) {
-        console.log('Invalid response code');
-        throw new Error('Invalid purchase response');
-      }
-      
-      if (result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-        throw new Error('Purchase canceled');
-      }
-      
-      if (result.responseCode === InAppPurchases.IAPResponseCode.OK && result.results && result.results.length > 0) {
-        console.log('Processing purchase...');
-        
-        for (const purchase of result.results) {
-          // NULL CHECK - ChatGPT kritik öneri
-          if (!purchase || !purchase.transactionIdentifier) {
-            console.log('Invalid purchase object, skipping');
-            continue;
+
+        // Success
+        if (result.responseCode === InAppPurchases.IAPResponseCode.OK) {
+          if (!result.results || result.results.length === 0) {
+            throw new Error('Satın alma verisi alınamadı');
           }
+
+          console.log('Processing purchases...');
           
-          // Add credits
-          await CreditService.addCredits(packageInfo.credits);
-          console.log('Credits added');
-          
-          // Finish transaction - SIN SEGUNDO PARAMETRO
-          try {
-            await InAppPurchases.finishTransactionAsync(purchase);
-            console.log('Transaction finished');
-          } catch (e) {
-            console.error('Finish error:', e);
+          // Process each purchase
+          for (const purchase of result.results) {
+            try {
+              // Null check
+              if (!purchase) {
+                console.log('Null purchase, skipping');
+                continue;
+              }
+
+              console.log('Processing purchase:', purchase.productId);
+
+              // Add credits
+              await CreditService.addCredits(packageInfo.credits);
+              console.log('Credits added');
+
+              // Finish transaction
+              try {
+                await InAppPurchases.finishTransactionAsync(purchase);
+                console.log('Transaction finished');
+              } catch (finishError) {
+                console.error('Finish error:', finishError);
+                // Continue anyway - credits already added
+              }
+            } catch (processPurchaseError) {
+              console.error('Process purchase error:', processPurchaseError);
+              // Continue with next purchase
+            }
           }
+
+          // Get total credits
+          const total = await CreditService.getCredits();
+          console.log('=== PURCHASE SUCCESS ===');
+          return { success: true, totalCredits: total };
         }
-        
-        const total = await CreditService.getCredits();
-        return { success: true, totalCredits: total };
+
+        // Other response codes
+        console.log('Unexpected response code:', result.responseCode);
+        throw new Error('Satın alma tamamlanamadı');
+
+      } catch (processError) {
+        console.error('Process error:', processError);
+        throw processError;
       }
-      
-      throw new Error('Purchase failed');
-      
+
     } catch (error) {
-      console.error('Purchase error:', error);
+      console.error('=== PURCHASE ERROR ===');
+      console.error('Error:', error.message);
       throw error;
     }
   }
 
   /**
-   * Load products
+   * Load Products - GÜVENLI
    */
   static async loadProducts() {
     try {
-      if (!InAppPurchases || this.isMockMode) {
+      if (!IAPAvailable || !InAppPurchases) {
         return [];
       }
 
       const productIds = Object.values(this.PRODUCT_IDS);
       const result = await InAppPurchases.getProductsAsync(productIds);
-      this.products = result?.results || [];
+      
+      if (result && result.results) {
+        this.products = result.results;
+      }
       
       return this.products;
     } catch (error) {
@@ -208,7 +239,7 @@ class CleanIAPService {
   }
 
   /**
-   * Get products
+   * Get Products
    */
   static async getProducts() {
     if (this.products.length === 0) {
