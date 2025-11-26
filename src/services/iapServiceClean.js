@@ -1,9 +1,21 @@
 import CreditService from './creditService';
+import { Alert } from 'react-native';
 
 /**
  * ULTRA MINIMAL IAP - NO CRASH GUARANTEED
  * Her adım try-catch ile korunmuş
  */
+
+// Güvenli Alert Helper - TestFlight'ta log görmek için
+const safeAlert = (title, message) => {
+  setTimeout(() => {
+    try {
+      Alert.alert(title, String(message), [{ text: 'OK' }]);
+    } catch (e) {
+      console.error('Alert error:', e);
+    }
+  }, 100);
+};
 
 // Güvenli IAP import
 let InAppPurchases = null;
@@ -39,6 +51,7 @@ class CleanIAPService {
    */
   static async initialize() {
     if (this.isInitialized) {
+      console.log('Already initialized');
       return true;
     }
 
@@ -49,16 +62,62 @@ class CleanIAPService {
     }
 
     try {
+      console.log('=== INITIALIZE START ===');
+      
       // Connect
       await InAppPurchases.connectAsync();
       console.log('IAP connected');
 
-      // Set listener - EN BASIT
+      // CLEANUP PENDING TRANSACTIONS - CRITICAL!
+      try {
+        console.log('Checking for pending transactions...');
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        
+        if (history && history.results && history.results.length > 0) {
+          console.log('Found', history.results.length, 'pending transactions');
+          
+          // DEBUG ALERT: Found pending transactions
+          safeAlert('🧹 CLEANUP', `Found ${history.results.length} pending transaction(s)\nCleaning...`);
+          
+          for (const purchase of history.results) {
+            try {
+              if (purchase && purchase.acknowledged === false) {
+                console.log('Finishing pending transaction:', purchase.productId);
+                await InAppPurchases.finishTransactionAsync(purchase);
+              }
+            } catch (finishErr) {
+              console.error('Finish pending error:', finishErr);
+            }
+          }
+          console.log('Pending transactions cleaned');
+          
+          // DEBUG ALERT: Cleanup done
+          safeAlert('✅ CLEANUP DONE', 'Pending transactions cleaned');
+        } else {
+          console.log('No pending transactions');
+        }
+      } catch (historyErr) {
+        console.error('Get history error:', historyErr);
+      }
+
+      // Set listener - CRITICAL
       InAppPurchases.setPurchaseListener((result) => {
         try {
+          console.log('>>> LISTENER TRIGGERED <<<');
+          console.log('Response code:', result?.responseCode);
+          console.log('Results:', result?.results?.length || 0);
+          
+          // DEBUG ALERT: Listener triggered
+          safeAlert(
+            '🔔 LISTENER',
+            `Code: ${result?.responseCode || 'null'}\nResults: ${result?.results?.length || 0}\nError: ${result?.errorCode || 'none'}`
+          );
+          
           if (result) {
             this.purchaseResult = result;
-            console.log('Purchase result received');
+            console.log('Purchase result stored');
+          } else {
+            console.log('Result is null!');
           }
         } catch (e) {
           console.error('Listener error:', e);
@@ -66,10 +125,15 @@ class CleanIAPService {
       });
 
       this.isInitialized = true;
+      console.log('=== INITIALIZE SUCCESS ===');
+      
+      // DEBUG ALERT: Initialize success
+      safeAlert('✅ IAP INIT', 'IAP initialized\nPending transactions cleaned');
+      
       return true;
     } catch (error) {
       console.error('IAP init error:', error);
-      this.isInitialized = true; // Mark as initialized even on error to prevent retry crashes
+      this.isInitialized = true;
       return false;
     }
   }
@@ -81,6 +145,9 @@ class CleanIAPService {
     try {
       console.log('=== PURCHASE START ===');
       console.log('Product ID:', productId);
+      
+      // DEBUG ALERT: Purchase started
+      safeAlert('🚀 PURCHASE START', `Product: ${productId}`);
 
       // Step 1: Initialize
       try {
@@ -120,6 +187,9 @@ class CleanIAPService {
       try {
         await InAppPurchases.purchaseItemAsync(productId);
         console.log('purchaseItemAsync returned');
+        
+        // DEBUG ALERT: purchaseItemAsync completed
+        safeAlert('✅ PURCHASE CALLED', 'purchaseItemAsync returned\nWaiting for listener...');
       } catch (purchaseError) {
         console.error('purchaseItemAsync error:', purchaseError);
         
@@ -132,37 +202,100 @@ class CleanIAPService {
         throw new Error('Satın alma başlatılamadı');
       }
 
-      // Step 6: Wait for listener
+      // Step 6: Wait for listener (10 seconds max)
       console.log('Waiting for listener...');
       let waitCount = 0;
-      while (!this.purchaseResult && waitCount < 50) {
+      const maxWait = 100; // 10 seconds
+      
+      while (!this.purchaseResult && waitCount < maxWait) {
         await new Promise(resolve => setTimeout(resolve, 100));
         waitCount++;
+        
+        // Debug every second
+        if (waitCount % 10 === 0) {
+          console.log('Still waiting...', waitCount / 10, 'seconds');
+        }
       }
 
       // Step 7: Check result
       const result = this.purchaseResult;
+      
       if (!result) {
-        console.log('Timeout - no result');
-        throw new Error('Zaman aşımı');
+        console.log('=== TIMEOUT - NO RESULT ===');
+        console.log('Waited:', waitCount / 10, 'seconds');
+        console.log('Listener was set?', this.isInitialized);
+        
+        // DEBUG ALERT: Timeout
+        safeAlert('⏱️ TIMEOUT', `Waited: ${waitCount / 10}s\nListener did not respond!\nChecking for stuck transactions...`);
+        
+        // Check if there's a stuck transaction
+        try {
+          const history = await InAppPurchases.getPurchaseHistoryAsync();
+          if (history && history.results && history.results.length > 0) {
+            console.log('Found stuck transactions:', history.results.length);
+            // Clean them
+            for (const purchase of history.results) {
+              if (purchase && purchase.productId === productId) {
+                console.log('Found matching stuck purchase, processing...');
+                
+                // DEBUG ALERT: Recovery found
+                safeAlert('🔧 RECOVERY', 'Found stuck transaction!\nProcessing...');
+                
+                // Add credits
+                await CreditService.addCredits(packageInfo.credits);
+                // Finish transaction
+                await InAppPurchases.finishTransactionAsync(purchase);
+                const total = await CreditService.getCredits();
+                console.log('=== RECOVERED FROM STUCK TRANSACTION ===');
+                
+                // DEBUG ALERT: Recovery success
+                safeAlert('✅ RECOVERY SUCCESS', `Credits added: ${packageInfo.credits}\nTotal: ${total}`);
+                
+                return { success: true, totalCredits: total };
+              }
+            }
+          }
+        } catch (recoveryErr) {
+          console.error('Recovery error:', recoveryErr);
+        }
+        
+        throw new Error('Zaman aşımı - Listener yanıt vermedi');
       }
 
-      console.log('Result received:', result.responseCode);
+      console.log('Result received!');
+      console.log('Response code:', result.responseCode);
+      
+      // DEBUG ALERT: Result received
+      safeAlert('📨 RESULT RECEIVED', `Code: ${result.responseCode}\nResults: ${result.results?.length || 0}\nError: ${result.errorCode || 'none'}`);
 
       // Step 8: Process result
       try {
+        console.log('Processing result...');
+        console.log('Response code:', result.responseCode);
+        console.log('Error code:', result.errorCode);
+        
         // Canceled
         if (result.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+          console.log('User canceled');
+          
+          // DEBUG ALERT: Canceled
+          safeAlert('❌ CANCELED', 'User canceled the purchase');
+          
           throw new Error('İptal edildi');
         }
 
         // Success
         if (result.responseCode === InAppPurchases.IAPResponseCode.OK) {
+          console.log('Response OK');
+          
           if (!result.results || result.results.length === 0) {
+            console.log('No results in response!');
             throw new Error('Satın alma verisi alınamadı');
           }
 
-          console.log('Processing purchases...');
+          console.log('Processing', result.results.length, 'purchase(s)...');
+          
+          let creditsAdded = false;
           
           // Process each purchase
           for (const purchase of result.results) {
@@ -173,35 +306,68 @@ class CleanIAPService {
                 continue;
               }
 
-              console.log('Processing purchase:', purchase.productId);
+              console.log('Purchase data:');
+              console.log('- productId:', purchase.productId);
+              console.log('- transactionId:', purchase.transactionIdentifier);
+              console.log('- acknowledged:', purchase.acknowledged);
+
+              // Skip if already acknowledged
+              if (purchase.acknowledged === true) {
+                console.log('Already acknowledged, skipping');
+                continue;
+              }
 
               // Add credits
+              console.log('Adding credits:', packageInfo.credits);
               await CreditService.addCredits(packageInfo.credits);
-              console.log('Credits added');
+              creditsAdded = true;
+              console.log('Credits added!');
+              
+              // DEBUG ALERT: Credits added
+              safeAlert('💰 CREDITS ADDED', `Added: ${packageInfo.credits}\nProduct: ${purchase.productId}`);
 
               // Finish transaction
               try {
+                console.log('Finishing transaction...');
                 await InAppPurchases.finishTransactionAsync(purchase);
-                console.log('Transaction finished');
+                console.log('Transaction finished!');
+                
+                // DEBUG ALERT: Transaction finished
+                safeAlert('✅ TRANSACTION FINISHED', 'Transaction completed!');
               } catch (finishError) {
                 console.error('Finish error:', finishError);
                 // Continue anyway - credits already added
               }
+              
             } catch (processPurchaseError) {
               console.error('Process purchase error:', processPurchaseError);
               // Continue with next purchase
             }
           }
 
+          if (!creditsAdded) {
+            console.log('WARNING: No credits were added!');
+          }
+
           // Get total credits
           const total = await CreditService.getCredits();
           console.log('=== PURCHASE SUCCESS ===');
+          console.log('Total credits:', total);
+          
+          // DEBUG ALERT: Success
+          safeAlert('🎉 PURCHASE SUCCESS', `Credits: ${packageInfo.credits}\nTotal: ${total}`);
+          
           return { success: true, totalCredits: total };
         }
 
         // Other response codes
         console.log('Unexpected response code:', result.responseCode);
-        throw new Error('Satın alma tamamlanamadı');
+        console.log('Available codes:', InAppPurchases.IAPResponseCode);
+        
+        // DEBUG ALERT: Unexpected code
+        safeAlert('⚠️ UNEXPECTED CODE', `Response: ${result.responseCode}\nError: ${result.errorCode || 'none'}`);
+        
+        throw new Error('Satın alma tamamlanamadı (kod: ' + result.responseCode + ')');
 
       } catch (processError) {
         console.error('Process error:', processError);
