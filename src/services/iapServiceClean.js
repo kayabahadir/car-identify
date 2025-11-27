@@ -64,11 +64,30 @@ class CleanIAPService {
     try {
       console.log('=== INITIALIZE START ===');
       
-      // Connect
+      // Set listener FIRST - CRITICAL FIX
+      InAppPurchases.setPurchaseListener((result) => {
+        try {
+          console.log('>>> LISTENER TRIGGERED <<<');
+          
+          // DEBUG ALERT: Listener triggered
+          safeAlert(
+            '🔔 LISTENER',
+            `Code: ${result?.responseCode}\nState: ${result?.responseCode === 0 ? 'OK' : 'Other'}`
+          );
+          
+          if (result) {
+            this.purchaseResult = result;
+          }
+        } catch (e) {
+          console.error('Listener error:', e);
+        }
+      });
+
+      // Connect AFTER listener
       await InAppPurchases.connectAsync();
       console.log('IAP connected');
 
-      // CLEANUP PENDING TRANSACTIONS - CRITICAL!
+      // CLEANUP PENDING TRANSACTIONS - AFTER CONNECT
       try {
         console.log('Checking for pending transactions...');
         const history = await InAppPurchases.getPurchaseHistoryAsync();
@@ -76,53 +95,18 @@ class CleanIAPService {
         if (history && history.results && history.results.length > 0) {
           console.log('Found', history.results.length, 'pending transactions');
           
-          // DEBUG ALERT: Found pending transactions
-          safeAlert('🧹 CLEANUP', `Found ${history.results.length} pending transaction(s)\nCleaning...`);
+          safeAlert('🧹 CLEANUP', `Cleaning ${history.results.length} pending items...`);
           
           for (const purchase of history.results) {
-            try {
-              if (purchase && purchase.acknowledged === false) {
-                console.log('Finishing pending transaction:', purchase.productId);
-                await InAppPurchases.finishTransactionAsync(purchase);
-              }
-            } catch (finishErr) {
-              console.error('Finish pending error:', finishErr);
+            if (purchase && !purchase.acknowledged) {
+              await InAppPurchases.finishTransactionAsync(purchase);
             }
           }
-          console.log('Pending transactions cleaned');
-          
-          // DEBUG ALERT: Cleanup done
-          safeAlert('✅ CLEANUP DONE', 'Pending transactions cleaned');
-        } else {
-          console.log('No pending transactions');
+          safeAlert('✅ CLEANUP DONE', 'All cleaned');
         }
       } catch (historyErr) {
         console.error('Get history error:', historyErr);
       }
-
-      // Set listener - CRITICAL
-      InAppPurchases.setPurchaseListener((result) => {
-        try {
-          console.log('>>> LISTENER TRIGGERED <<<');
-          console.log('Response code:', result?.responseCode);
-          console.log('Results:', result?.results?.length || 0);
-          
-          // DEBUG ALERT: Listener triggered
-          safeAlert(
-            '🔔 LISTENER',
-            `Code: ${result?.responseCode || 'null'}\nResults: ${result?.results?.length || 0}\nError: ${result?.errorCode || 'none'}`
-          );
-          
-          if (result) {
-            this.purchaseResult = result;
-            console.log('Purchase result stored');
-          } else {
-            console.log('Result is null!');
-          }
-        } catch (e) {
-          console.error('Listener error:', e);
-        }
-      });
 
       this.isInitialized = true;
       console.log('=== INITIALIZE SUCCESS ===');
@@ -235,7 +219,11 @@ class CleanIAPService {
             console.log('Found stuck transactions:', history.results.length);
             // Clean them
             for (const purchase of history.results) {
-              if (purchase && purchase.productId === productId) {
+              // Sadece 5 dakika içindeki transaction'ları kabul et (stuck transaction cancel bug fix)
+              const txTime = purchase.transactionDate; // timestamp olabilir
+              const isRecent = txTime ? (Date.now() - txTime < 300000) : true; // timestamp yoksa kabul et
+              
+              if (purchase && purchase.productId === productId && isRecent) {
                 console.log('Found matching stuck purchase, processing...');
                 
                 // DEBUG ALERT: Recovery found
@@ -252,6 +240,11 @@ class CleanIAPService {
                 safeAlert('✅ RECOVERY SUCCESS', `Credits added: ${packageInfo.credits}\nTotal: ${total}`);
                 
                 return { success: true, totalCredits: total };
+              } else if (purchase && purchase.productId === productId) {
+                 // Eski transaction ise sadece temizle, kredi verme
+                 console.log('Found OLD stuck purchase, cleaning without credits...');
+                 await InAppPurchases.finishTransactionAsync(purchase);
+                 safeAlert('🧹 OLD TX CLEANED', 'Old stuck transaction cleaned');
               }
             }
           }
