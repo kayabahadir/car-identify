@@ -60,7 +60,7 @@ class CleanIAPService {
 
     if (!IAPAvailable || !InAppPurchases) {
       console.log('IAP not available');
-      this.isInitialized = true;
+        this.isInitialized = true;
       return false;
     }
 
@@ -106,10 +106,11 @@ class CleanIAPService {
           
           for (const purchase of history.results) {
             if (purchase && !purchase.acknowledged) {
-              await InAppPurchases.finishTransactionAsync(purchase);
+              // Fire and forget - don't await to prevent blocking init
+              InAppPurchases.finishTransactionAsync(purchase).catch(e => console.log('Finish err:', e));
             }
           }
-          safeAlert('✅ CLEANUP DONE', 'All cleaned');
+          safeAlert('✅ CLEANUP STARTED', 'Cleaning in background...');
         }
       } catch (historyErr) {
         console.error('Get history error:', historyErr);
@@ -175,6 +176,17 @@ class CleanIAPService {
 
       // Step 5: Call purchase
       console.log('Calling purchaseItemAsync...');
+      
+      // Mevcut pending sayısını al (Polling için referans)
+      let initialPendingCount = 0;
+      try {
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        if (history && history.results) {
+          initialPendingCount = history.results.filter(p => !p.acknowledged).length;
+          console.log('Initial pending count:', initialPendingCount);
+        }
+      } catch (e) {}
+
       try {
         await InAppPurchases.purchaseItemAsync(productId);
         console.log('purchaseItemAsync returned');
@@ -193,18 +205,42 @@ class CleanIAPService {
         throw new Error('Satın alma başlatılamadı');
       }
 
-      // Step 6: Wait for listener (10 seconds max)
-      console.log('Waiting for listener...');
+      // Step 6: Wait for listener OR Polling (15 seconds max)
+      console.log('Waiting for listener or polling...');
       let waitCount = 0;
-      const maxWait = 100; // 10 seconds
+      const maxWait = 150; // 15 seconds
       
       while (!CleanIAPService.purchaseResult && waitCount < maxWait) {
         await new Promise(resolve => setTimeout(resolve, 100));
         waitCount++;
         
-        // Debug every second
-        if (waitCount % 10 === 0) {
-          console.log('Still waiting...', waitCount / 10, 'seconds');
+        // POLLING STRATEGY: Listener çalışmazsa history'den kontrol et (Her 2 saniyede bir)
+        if (waitCount % 20 === 0) {
+          console.log('Polling history...', waitCount / 10, 's');
+          try {
+             const history = await InAppPurchases.getPurchaseHistoryAsync();
+             if (history && history.results) {
+               // Sadece acknowledged:false olanları filtrele
+               const currentPending = history.results.filter(p => !p.acknowledged);
+               
+               // Eğer pending sayısı arttıysa veya ürün ID'si eşleşen yeni bir acknowledged:false varsa
+               // (Zaman kontrolünü kaldırdım - format sorunu olabilir)
+               const newPurchase = currentPending.find(p => p.productId === productId);
+               
+               // Eğer başlangıçtakinden fazla pending varsa VEYA eşleşen bir pending bulduysak
+               if (currentPending.length > initialPendingCount && newPurchase) {
+                 console.log('Polling found NEW purchase!');
+                 safeAlert('🔍 POLLING', 'Found new purchase via polling!');
+                 CleanIAPService.purchaseResult = {
+                   responseCode: InAppPurchases.IAPResponseCode.OK,
+                   results: [newPurchase]
+                 };
+                 break; // Döngüden çık
+               }
+             }
+          } catch (pollErr) {
+            console.log('Polling error:', pollErr);
+          }
         }
       }
 
@@ -213,14 +249,8 @@ class CleanIAPService {
       
       if (!result) {
         console.log('=== TIMEOUT - NO RESULT ===');
-        
-        // DEBUG ALERT: Timeout
-        safeAlert('⏱️ TIMEOUT', `Waited: ${waitCount / 10}s\nListener did not respond!`);
-        
-        // !!! DISABLE RECOVERY !!!
-        // Stuck transaction logic causes credits on cancel
-        // Just fail gracefully
-        throw new Error('İşlem zaman aşımına uğradı. Lütfen tekrar deneyin.');
+        safeAlert('⏱️ TIMEOUT', `Waited: ${waitCount / 10}s\nNo purchase detected.`);
+        throw new Error('İşlem zaman aşımına uğradı veya iptal edildi.');
       }
 
       console.log('Result received!');
@@ -357,7 +387,7 @@ class CleanIAPService {
       if (result && result.results) {
         this.products = result.results;
       }
-      
+
       return this.products;
     } catch (error) {
       console.error('Load products error:', error);
