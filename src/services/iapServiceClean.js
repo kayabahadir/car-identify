@@ -29,6 +29,9 @@ try {
   console.log('IAP module not available');
 }
 
+// Global variable to track listener status
+let isListenerSet = false;
+
 class CleanIAPService {
   static PRODUCT_IDS = {
     PACK_10: 'com.caridentify.app.credits.consumable.pack10',
@@ -64,29 +67,33 @@ class CleanIAPService {
     try {
       console.log('=== INITIALIZE START ===');
       
-      // Set listener FIRST - CRITICAL FIX
-      InAppPurchases.setPurchaseListener((result) => {
-        try {
-          console.log('>>> LISTENER TRIGGERED <<<');
-          
-          // DEBUG ALERT: Listener triggered
-          safeAlert(
-            '🔔 LISTENER',
-            `Code: ${result?.responseCode}\nState: ${result?.responseCode === 0 ? 'OK' : 'Other'}`
-          );
-          
-          if (result) {
-            this.purchaseResult = result;
-          }
-        } catch (e) {
-          console.error('Listener error:', e);
-        }
-      });
-
-      // Connect AFTER listener
+      // Connect first
       await InAppPurchases.connectAsync();
       console.log('IAP connected');
 
+      // Set listener ONLY ONCE
+      if (!isListenerSet) {
+        InAppPurchases.setPurchaseListener((result) => {
+          try {
+            console.log('>>> LISTENER TRIGGERED <<<');
+            
+            // DEBUG ALERT: Listener triggered
+            safeAlert(
+              '🔔 LISTENER',
+              `Code: ${result?.responseCode}\nState: ${result?.responseCode === 0 ? 'OK' : 'Other'}`
+            );
+            
+            if (result) {
+              CleanIAPService.purchaseResult = result;
+            }
+          } catch (e) {
+            console.error('Listener error:', e);
+          }
+        });
+        isListenerSet = true;
+        console.log('Listener set globally');
+      }
+      
       // CLEANUP PENDING TRANSACTIONS - AFTER CONNECT
       try {
         console.log('Checking for pending transactions...');
@@ -164,7 +171,7 @@ class CleanIAPService {
       }
 
       // Step 4: Reset result
-      this.purchaseResult = null;
+      CleanIAPService.purchaseResult = null;
 
       // Step 5: Call purchase
       console.log('Calling purchaseItemAsync...');
@@ -191,7 +198,7 @@ class CleanIAPService {
       let waitCount = 0;
       const maxWait = 100; // 10 seconds
       
-      while (!this.purchaseResult && waitCount < maxWait) {
+      while (!CleanIAPService.purchaseResult && waitCount < maxWait) {
         await new Promise(resolve => setTimeout(resolve, 100));
         waitCount++;
         
@@ -202,57 +209,18 @@ class CleanIAPService {
       }
 
       // Step 7: Check result
-      const result = this.purchaseResult;
+      const result = CleanIAPService.purchaseResult;
       
       if (!result) {
         console.log('=== TIMEOUT - NO RESULT ===');
-        console.log('Waited:', waitCount / 10, 'seconds');
-        console.log('Listener was set?', this.isInitialized);
         
         // DEBUG ALERT: Timeout
-        safeAlert('⏱️ TIMEOUT', `Waited: ${waitCount / 10}s\nListener did not respond!\nChecking for stuck transactions...`);
+        safeAlert('⏱️ TIMEOUT', `Waited: ${waitCount / 10}s\nListener did not respond!`);
         
-        // Check if there's a stuck transaction
-        try {
-          const history = await InAppPurchases.getPurchaseHistoryAsync();
-          if (history && history.results && history.results.length > 0) {
-            console.log('Found stuck transactions:', history.results.length);
-            // Clean them
-            for (const purchase of history.results) {
-              // Sadece 5 dakika içindeki transaction'ları kabul et (stuck transaction cancel bug fix)
-              const txTime = purchase.transactionDate; // timestamp olabilir
-              const isRecent = txTime ? (Date.now() - txTime < 300000) : true; // timestamp yoksa kabul et
-              
-              if (purchase && purchase.productId === productId && isRecent) {
-                console.log('Found matching stuck purchase, processing...');
-                
-                // DEBUG ALERT: Recovery found
-                safeAlert('🔧 RECOVERY', 'Found stuck transaction!\nProcessing...');
-                
-                // Add credits
-                await CreditService.addCredits(packageInfo.credits);
-                // Finish transaction
-                await InAppPurchases.finishTransactionAsync(purchase);
-                const total = await CreditService.getCredits();
-                console.log('=== RECOVERED FROM STUCK TRANSACTION ===');
-                
-                // DEBUG ALERT: Recovery success
-                safeAlert('✅ RECOVERY SUCCESS', `Credits added: ${packageInfo.credits}\nTotal: ${total}`);
-                
-                return { success: true, totalCredits: total };
-              } else if (purchase && purchase.productId === productId) {
-                 // Eski transaction ise sadece temizle, kredi verme
-                 console.log('Found OLD stuck purchase, cleaning without credits...');
-                 await InAppPurchases.finishTransactionAsync(purchase);
-                 safeAlert('🧹 OLD TX CLEANED', 'Old stuck transaction cleaned');
-              }
-            }
-          }
-        } catch (recoveryErr) {
-          console.error('Recovery error:', recoveryErr);
-        }
-        
-        throw new Error('Zaman aşımı - Listener yanıt vermedi');
+        // !!! DISABLE RECOVERY !!!
+        // Stuck transaction logic causes credits on cancel
+        // Just fail gracefully
+        throw new Error('İşlem zaman aşımına uğradı. Lütfen tekrar deneyin.');
       }
 
       console.log('Result received!');
