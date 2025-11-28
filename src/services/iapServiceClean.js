@@ -174,10 +174,32 @@ class CleanIAPService {
       // Step 4: Reset result
       CleanIAPService.purchaseResult = null;
 
+      // Step 0: AGGRESSIVE PRE-CLEANUP
+      // Ödeme ekranının açılmamasının sebebi pending transaction'dır.
+      // Satın alma başlamadan önce her şeyi temizle.
+      safeAlert('🧹 PRE-CLEANUP', 'Cleaning pending transactions to fix payment screen...');
+      try {
+        const history = await InAppPurchases.getPurchaseHistoryAsync();
+        if (history && history.results) {
+          for (const purchase of history.results) {
+            if (!purchase.acknowledged) {
+              console.log('Force finishing:', purchase.productId);
+              await InAppPurchases.finishTransactionAsync(purchase);
+            }
+          }
+        }
+        // Biraz bekle ki Apple işlemi sindirsin
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch (cleanupErr) {
+        console.log('Pre-cleanup error:', cleanupErr);
+      }
+
       // Step 5: Call purchase
       console.log('Calling purchaseItemAsync...');
       
       // Mevcut pending sayısını al (Polling için referans)
+      // Pre-cleanup yapıldığı için buna gerek kalmadı
+      /*
       let initialPendingCount = 0;
       try {
         const history = await InAppPurchases.getPurchaseHistoryAsync();
@@ -186,6 +208,7 @@ class CleanIAPService {
           console.log('Initial pending count:', initialPendingCount);
         }
       } catch (e) {}
+      */
 
       try {
         await InAppPurchases.purchaseItemAsync(productId);
@@ -221,14 +244,13 @@ class CleanIAPService {
              const history = await InAppPurchases.getPurchaseHistoryAsync();
              if (history && history.results) {
                // Sadece acknowledged:false olanları filtrele
-               const currentPending = history.results.filter(p => !p.acknowledged);
+               // Initial count kontrolünü kaldırdım, çünkü pre-cleanup ile sıfırladık.
+               // Şimdi acknowledged:false olan herhangi bir şey YENİ işlemdir.
+               const newPurchase = history.results.find(p => 
+                 p.productId === productId && !p.acknowledged
+               );
                
-               // Eğer pending sayısı arttıysa veya ürün ID'si eşleşen yeni bir acknowledged:false varsa
-               // (Zaman kontrolünü kaldırdım - format sorunu olabilir)
-               const newPurchase = currentPending.find(p => p.productId === productId);
-               
-               // Eğer başlangıçtakinden fazla pending varsa VEYA eşleşen bir pending bulduysak
-               if (currentPending.length > initialPendingCount && newPurchase) {
+               if (newPurchase) {
                  console.log('Polling found NEW purchase!');
                  safeAlert('🔍 POLLING', 'Found new purchase via polling!');
                  CleanIAPService.purchaseResult = {
