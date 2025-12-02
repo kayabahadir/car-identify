@@ -4,6 +4,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FirstTimeService from './src/services/firstTimeService';
+import CleanIAPService from './src/services/iapServiceClean';
+import * as InAppPurchases from 'expo-in-app-purchases';
+import { Alert } from 'react-native';
 
 // Import screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -23,6 +26,44 @@ export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState(null);
 
   useEffect(() => {
+    // GLOBAL IAP LISTENER
+    console.log('App mounted, setting up IAP listener...');
+    
+    const setupIAP = async () => {
+      try {
+        // Sadece bir kere bağla
+        await InAppPurchases.connectAsync();
+        console.log('App.js: IAP Connected');
+        
+        InAppPurchases.setPurchaseListener(async (result) => {
+          console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
+          
+          // DEBUG ALERT
+          try {
+            Alert.alert('🔔 APP LISTENER', `Code: ${result?.responseCode}`);
+          } catch (e) {}
+          
+          if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
+            if (result.results && result.results.length > 0) {
+              for (const purchase of result.results) {
+                console.log('App.js: Processing purchase', purchase.productId);
+                // Delegate to Service
+                await CleanIAPService.handleSuccessfulPurchase(purchase);
+              }
+            }
+          } else if (result?.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+            console.log('App.js: User canceled');
+          } else {
+             console.log('App.js: Other response', result?.responseCode);
+          }
+        });
+      } catch (e) {
+        console.error('App.js: IAP Setup error:', e);
+      }
+    };
+    
+    setupIAP();
+    
     checkFirstLaunch();
   }, []);
 
