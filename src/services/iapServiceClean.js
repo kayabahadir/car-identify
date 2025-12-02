@@ -174,49 +174,11 @@ class CleanIAPService {
       // Step 4: Reset result
       CleanIAPService.purchaseResult = null;
 
-      // Step 0: AGGRESSIVE PRE-CLEANUP (Retry Logic)
-      safeAlert('🧹 PRE-CLEANUP', 'Deep cleaning pending transactions...');
-      
-      for (let i = 0; i < 3; i++) {
-        try {
-          const history = await InAppPurchases.getPurchaseHistoryAsync();
-          if (history && history.results && history.results.length > 0) {
-            const pending = history.results.filter(p => !p.acknowledged);
-            if (pending.length === 0) break; // Temiz
-            
-            for (const purchase of pending) {
-              console.log(`Force finishing (${i+1}):`, purchase.productId);
-              await InAppPurchases.finishTransactionAsync(purchase);
-            }
-            // Bekle
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            break; // Temiz
-          }
-        } catch (cleanupErr) {
-          console.log('Pre-cleanup error:', cleanupErr);
-        }
-      }
-
-      // Final check
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Step 0: Pre-cleanup REMOVED (Blokluyor)
+      // safeAlert('🧹 PRE-CLEANUP', 'Deep cleaning pending transactions...');
 
       // Step 5: Call purchase
       console.log('Calling purchaseItemAsync...');
-      
-      // Mevcut pending sayısını al (Polling için referans)
-      // Pre-cleanup yapıldığı için buna gerek kalmadı
-      /*
-      let initialPendingCount = 0;
-      try {
-        const history = await InAppPurchases.getPurchaseHistoryAsync();
-        if (history && history.results) {
-          initialPendingCount = history.results.filter(p => !p.acknowledged).length;
-          console.log('Initial pending count:', initialPendingCount);
-        }
-      } catch (e) {}
-      */
-
       try {
         await InAppPurchases.purchaseItemAsync(productId);
         console.log('purchaseItemAsync returned');
@@ -232,7 +194,12 @@ class CleanIAPService {
           throw new Error('İptal edildi');
         }
         
-        throw new Error('Satın alma başlatılamadı');
+        // EĞER HATA ALIRSAK (Örn: Zaten satın alınmış), HEMEN KONTROL ET
+        console.log('Purchase error (maybe already owned), checking history...');
+        safeAlert('⚠️ ERROR / CHECKING', `Error: ${purchaseError.code}\nChecking history...`);
+        
+        // Polling mantığını hemen tetikle
+        // (Aşağıdaki polling döngüsü zaten çalışacak)
       }
 
       // Step 6: Wait for listener OR Polling (15 seconds max)
