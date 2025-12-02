@@ -174,25 +174,32 @@ class CleanIAPService {
       // Step 4: Reset result
       CleanIAPService.purchaseResult = null;
 
-      // Step 0: AGGRESSIVE PRE-CLEANUP
-      // Ödeme ekranının açılmamasının sebebi pending transaction'dır.
-      // Satın alma başlamadan önce her şeyi temizle.
-      safeAlert('🧹 PRE-CLEANUP', 'Cleaning pending transactions to fix payment screen...');
-      try {
-        const history = await InAppPurchases.getPurchaseHistoryAsync();
-        if (history && history.results) {
-          for (const purchase of history.results) {
-            if (!purchase.acknowledged) {
-              console.log('Force finishing:', purchase.productId);
+      // Step 0: AGGRESSIVE PRE-CLEANUP (Retry Logic)
+      safeAlert('🧹 PRE-CLEANUP', 'Deep cleaning pending transactions...');
+      
+      for (let i = 0; i < 3; i++) {
+        try {
+          const history = await InAppPurchases.getPurchaseHistoryAsync();
+          if (history && history.results && history.results.length > 0) {
+            const pending = history.results.filter(p => !p.acknowledged);
+            if (pending.length === 0) break; // Temiz
+            
+            for (const purchase of pending) {
+              console.log(`Force finishing (${i+1}):`, purchase.productId);
               await InAppPurchases.finishTransactionAsync(purchase);
             }
+            // Bekle
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            break; // Temiz
           }
+        } catch (cleanupErr) {
+          console.log('Pre-cleanup error:', cleanupErr);
         }
-        // Biraz bekle ki Apple işlemi sindirsin
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      } catch (cleanupErr) {
-        console.log('Pre-cleanup error:', cleanupErr);
       }
+
+      // Final check
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Step 5: Call purchase
       console.log('Calling purchaseItemAsync...');
@@ -246,16 +253,28 @@ class CleanIAPService {
                // Sadece acknowledged:false olanları filtrele
                // Initial count kontrolünü kaldırdım, çünkü pre-cleanup ile sıfırladık.
                // Şimdi acknowledged:false olan herhangi bir şey YENİ işlemdir.
-               const newPurchase = history.results.find(p => 
-                 p.productId === productId && !p.acknowledged
-               );
+               // AYRICA: Restore durumunda acknowledged:true gelebilir ama transactionDate çok yeni olabilir.
                
-               if (newPurchase) {
+               const recentPurchase = history.results.find(p => {
+                 const isProductMatch = p.productId === productId;
+                 // Acknowledged değilse KESİN al
+                 if (isProductMatch && !p.acknowledged) return true;
+                 
+                 // Acknowledged ise ama ÇOK YENİ ise (son 30 saniye) al (Restore case)
+                 if (isProductMatch && p.transactionDate > (Date.now() - 30000)) {
+                   console.log('Found recent restored purchase');
+                   return true;
+                 }
+                 
+                 return false;
+               });
+               
+               if (recentPurchase) {
                  console.log('Polling found NEW purchase!');
-                 safeAlert('🔍 POLLING', 'Found new purchase via polling!');
+                 safeAlert('🔍 POLLING', `Found purchase! Ack: ${recentPurchase.acknowledged}`);
                  CleanIAPService.purchaseResult = {
                    responseCode: InAppPurchases.IAPResponseCode.OK,
-                   results: [newPurchase]
+                   results: [recentPurchase]
                  };
                  break; // Döngüden çık
                }
