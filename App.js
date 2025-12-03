@@ -31,10 +31,33 @@ export default function App() {
     
     const setupIAP = async () => {
       try {
-        // Sadece bir kere bağla
+        // Connect
         await InAppPurchases.connectAsync();
         console.log('App.js: IAP Connected');
         
+        // CLEANUP PENDING TRANSACTIONS - KRITIK!
+        try {
+          console.log('App.js: Checking for pending transactions...');
+          const history = await InAppPurchases.getPurchaseHistoryAsync();
+          
+          if (history && history.results && history.results.length > 0) {
+            console.log('App.js: Found', history.results.length, 'pending transactions, cleaning...');
+            
+            for (const purchase of history.results) {
+              if (purchase && !purchase.acknowledged) {
+                console.log('App.js: Finishing pending:', purchase.productId);
+                await InAppPurchases.finishTransactionAsync(purchase, false);
+              }
+            }
+            console.log('App.js: Cleanup done');
+          } else {
+            console.log('App.js: No pending transactions');
+          }
+        } catch (historyErr) {
+          console.error('App.js: History cleanup error:', historyErr);
+        }
+        
+        // SET LISTENER
         InAppPurchases.setPurchaseListener(async (result) => {
           console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
           

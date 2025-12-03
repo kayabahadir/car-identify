@@ -252,45 +252,124 @@ const PurchaseScreen = ({ navigation }) => {
     }
     
     try {
+      // Mevcut krediyi kaydet (başarı kontrolü için)
+      const creditsBefore = credits;
+      
       // Call purchase
       console.log('Calling purchaseProduct...');
       const result = await CleanIAPService.purchaseProduct(packageInfo.id);
       
       console.log('Purchase result:', result);
       
-      // Mark first time (non-blocking)
-      try {
-        FirstTimeService.markFreeAnalysisUsed().catch(() => {});
-      } catch (e) {
-        // Ignore
+      // Eğer result.status === 'pending' ise, App.js listener'ı bekle
+      if (result && result.status === 'pending') {
+        console.log('Purchase pending, waiting for App.js listener...');
+        
+        // Kredileri her 500ms'de bir kontrol et (max 30 saniye)
+        let checkCount = 0;
+        const maxChecks = 60; // 30 saniye
+        
+        const checkInterval = setInterval(async () => {
+          checkCount++;
+          console.log('Checking credits...', checkCount);
+          
+          try {
+            const newCredits = await CreditService.getCredits();
+            console.log('Credits:', creditsBefore, '->', newCredits);
+            
+            // Kredi arttı mı?
+            if (newCredits > creditsBefore) {
+              console.log('Credits increased! Purchase successful!');
+              clearInterval(checkInterval);
+              
+              // Update state
+              setCredits(newCredits);
+              setLoading(false);
+              setSelectedPackage(null);
+              
+              // Mark first time
+              try {
+                FirstTimeService.markFreeAnalysisUsed().catch(() => {});
+              } catch (e) {}
+              
+              // Show success
+              Alert.alert(
+                '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
+                `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+                [{ 
+                  text: language === 'tr' ? 'Devam' : 'Continue',
+                  onPress: () => {
+                    try {
+                      navigation.navigate('Home', { forceRefresh: Date.now() });
+                    } catch (navError) {
+                      console.error('Navigation error:', navError);
+                    }
+                  }
+                }]
+              );
+              return;
+            }
+            
+            // Timeout
+            if (checkCount >= maxChecks) {
+              console.log('Timeout waiting for credits');
+              clearInterval(checkInterval);
+              
+              setLoading(false);
+              setSelectedPackage(null);
+              
+              Alert.alert(
+                '⏱️ ' + (language === 'tr' ? 'Zaman Aşımı' : 'Timeout'),
+                language === 'tr' 
+                  ? 'İşlem tamamlanamadı. Eğer ödeme yapıldıysa kredileriniz kısa süre içinde eklenecektir.'
+                  : 'Transaction could not be completed. If payment was made, credits will be added shortly.',
+                [{ text: 'OK' }]
+              );
+            }
+          } catch (e) {
+            console.error('Credit check error:', e);
+          }
+        }, 500);
+        
+        return;
       }
       
-      // Close loading
-      try {
+      // Mock durumu (result.mock === true)
+      if (result && result.mock) {
+        setCredits(result.totalCredits || credits);
         setLoading(false);
         setSelectedPackage(null);
-      } catch (e) {
-        console.error('setState error:', e);
-      }
-      
-      // Show success
-      try {
+        
         Alert.alert(
           '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
           `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
           [{ 
             text: language === 'tr' ? 'Devam' : 'Continue',
-            onPress: () => {
-              try {
-                navigation.navigate('Home', { forceRefresh: Date.now() });
-              } catch (navError) {
-                console.error('Navigation error:', navError);
-              }
-            }
+            onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
           }]
         );
-      } catch (alertError) {
-        console.error('Alert error:', alertError);
+        return;
+      }
+      
+      // Eski mantık (result.success === true)
+      if (result && result.success) {
+        setCredits(result.totalCredits || credits);
+        setLoading(false);
+        setSelectedPackage(null);
+        
+        try {
+          FirstTimeService.markFreeAnalysisUsed().catch(() => {});
+        } catch (e) {}
+        
+        Alert.alert(
+          '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
+          `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+          [{ 
+            text: language === 'tr' ? 'Devam' : 'Continue',
+            onPress: () => navigation.navigate('Home', { forceRefresh: Date.now() })
+          }]
+        );
+        return;
       }
 
     } catch (error) {
