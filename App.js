@@ -34,6 +34,7 @@ export default function App() {
         // Connect
         await InAppPurchases.connectAsync();
         console.log('App.js: IAP Connected');
+        Alert.alert('✅ IAP SETUP', 'IAP Connected');
         
         // CLEANUP PENDING TRANSACTIONS - KRITIK!
         try {
@@ -42,6 +43,7 @@ export default function App() {
           
           if (history && history.results && history.results.length > 0) {
             console.log('App.js: Found', history.results.length, 'pending transactions, cleaning...');
+            Alert.alert('🧹 CLEANUP', `Found ${history.results.length} pending items`);
             
             for (const purchase of history.results) {
               if (purchase && !purchase.acknowledged) {
@@ -50,11 +52,14 @@ export default function App() {
               }
             }
             console.log('App.js: Cleanup done');
+            Alert.alert('✅ CLEANUP DONE', 'All pending items cleaned');
           } else {
             console.log('App.js: No pending transactions');
+            Alert.alert('✅ CLEANUP DONE', 'No pending transactions');
           }
         } catch (historyErr) {
           console.error('App.js: History cleanup error:', historyErr);
+          Alert.alert('❌ CLEANUP ERROR', historyErr.message);
         }
         
         // SET LISTENER

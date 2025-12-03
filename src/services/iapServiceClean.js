@@ -132,37 +132,43 @@ class CleanIAPService {
   static async purchaseProduct(productId) {
     try {
       console.log('Service: Purchase start:', productId);
-      safeAlert('🚀 PURCHASE START', `Product: ${productId}`);
+      safeAlert('🚀 SERVICE', `Purchase start: ${productId}`);
 
       // Initialize
       if (!this.isInitialized) {
+        safeAlert('⚙️ INIT', 'Initializing IAP...');
         await this.initialize();
+        safeAlert('✅ INIT DONE', 'IAP initialized');
       }
 
       // Check package
       const packageInfo = this.CREDIT_PACKAGES[productId];
       if (!packageInfo) {
+        safeAlert('❌ INVALID', `Invalid product: ${productId}`);
         throw new Error('Geçersiz ürün');
       }
+      
+      safeAlert('📦 PACKAGE', `Credits: ${packageInfo.credits}\nPrice: ${packageInfo.price}`);
 
       // Check IAP availability
       if (!IAPAvailable || !InAppPurchases) {
         console.log('IAP not available, using mock');
-        safeAlert('⚠️ MOCK MODE', 'Using mock purchase');
+        safeAlert('⚠️ MOCK MODE', 'IAP not available\nUsing mock purchase');
         await new Promise(resolve => setTimeout(resolve, 2000));
         await CreditService.addCredits(packageInfo.credits);
         const total = await CreditService.getCredits();
+        safeAlert('✅ MOCK DONE', `Added ${packageInfo.credits} credits\nTotal: ${total}`);
         return { success: true, mock: true, totalCredits: total };
       }
 
       // Call purchase - sonucu beklemiyoruz, App.js listener yakalar
       console.log('Service: Calling purchaseItemAsync...');
-      safeAlert('📱 CALLING APPLE', 'Calling purchaseItemAsync...');
+      safeAlert('📱 CALLING APPLE', `Calling purchaseItemAsync\nProduct: ${productId}`);
       
       try {
         await InAppPurchases.purchaseItemAsync(productId);
         console.log('Service: purchaseItemAsync returned');
-        safeAlert('✅ CALLED', 'purchaseItemAsync returned\nApp.js listener will handle result');
+        safeAlert('✅ APPLE CALLED', 'purchaseItemAsync returned successfully\nWaiting for App.js listener...');
         
         // Başarıyla çağrıldı, sonuç App.js'den gelecek
         // PurchaseScreen'e "pending" döndür
@@ -170,11 +176,12 @@ class CleanIAPService {
         
       } catch (purchaseError) {
         console.error('Service: purchaseItemAsync error:', purchaseError);
-        safeAlert('❌ PURCHASE ERROR', `Error: ${purchaseError.code || purchaseError.message}`);
+        safeAlert('❌ APPLE ERROR', `Code: ${purchaseError.code}\nMessage: ${purchaseError.message}`);
         
         // User canceled
         if (purchaseError.code === 'USER_CANCELED' || 
             purchaseError.message?.toLowerCase().includes('cancel')) {
+          safeAlert('🚫 CANCELED', 'User canceled the purchase');
           throw new Error('İptal edildi');
         }
         
@@ -185,6 +192,7 @@ class CleanIAPService {
 
     } catch (error) {
       console.error('Service: Purchase error:', error);
+      safeAlert('❌ SERVICE ERROR', `Error: ${error.message}`);
       throw error;
     }
   }

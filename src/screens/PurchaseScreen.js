@@ -228,8 +228,9 @@ const PurchaseScreen = ({ navigation }) => {
 
   const handlePurchase = async (packageInfo) => {
     // Validation
-    if (!packageInfo || !packageInfo.id) {
-      console.error('Invalid packageInfo');
+    if (!packageInfo || !packageInfo.id || !packageInfo.credits) {
+      console.error('Invalid packageInfo:', packageInfo);
+      Alert.alert('❌ HATA', `Invalid package: ${JSON.stringify(packageInfo)}`);
       return;
     }
     
@@ -241,6 +242,7 @@ const PurchaseScreen = ({ navigation }) => {
     
     console.log('=== handlePurchase START ===');
     console.log('Package:', packageInfo.id);
+    Alert.alert('🛒 PURCHASE', `Package: ${packageInfo.id}\nCredits: ${packageInfo.credits}`);
     
     // Set loading state
     try {
@@ -253,7 +255,7 @@ const PurchaseScreen = ({ navigation }) => {
     
     try {
       // Mevcut krediyi kaydet (başarı kontrolü için)
-      const creditsBefore = credits;
+      const creditsBefore = currentCredits;
       
       // Call purchase
       console.log('Calling purchaseProduct...');
@@ -283,7 +285,7 @@ const PurchaseScreen = ({ navigation }) => {
               clearInterval(checkInterval);
               
               // Update state
-              setCredits(newCredits);
+              setCurrentCredits(newCredits);
               setLoading(false);
               setSelectedPackage(null);
               
@@ -336,7 +338,7 @@ const PurchaseScreen = ({ navigation }) => {
       
       // Mock durumu (result.mock === true)
       if (result && result.mock) {
-        setCredits(result.totalCredits || credits);
+        setCurrentCredits(result.totalCredits || currentCredits);
         setLoading(false);
         setSelectedPackage(null);
         
@@ -353,7 +355,7 @@ const PurchaseScreen = ({ navigation }) => {
       
       // Eski mantık (result.success === true)
       if (result && result.success) {
-        setCredits(result.totalCredits || credits);
+        setCurrentCredits(result.totalCredits || currentCredits);
         setLoading(false);
         setSelectedPackage(null);
         
