@@ -148,16 +148,21 @@ class CreditService {
    * @param {number} amount - Eklenecek kredi miktarı
    * @param {string} source - Kredinin kaynağı (purchase, bonus, vb.)
    */
-  static async addCredits(amount, source = 'purchase') {
+  static async addCredits(amount, source = 'purchase', sourceTxId = null) {
     try {
       const currentCredits = await this.getCredits();
       const newCredits = currentCredits + amount;
       
       await AsyncStorage.setItem(this.STORAGE_KEYS.USER_CREDITS, newCredits.toString());
-      await this.logCreditHistory('credits_added', amount, `${source} ile ${amount} kredi eklendi`);
+      
+      const description = sourceTxId 
+        ? `${source} ile ${amount} kredi eklendi (TxID: ${sourceTxId})`
+        : `${source} ile ${amount} kredi eklendi`;
+      
+      await this.logCreditHistory('credits_added', amount, description);
       
       if (__DEV__) {
-        console.log(`✅ ${amount} credits added successfully. Total: ${newCredits}`);
+        console.log(`✅ ${amount} credits added successfully. Total: ${newCredits}`, sourceTxId ? `(TxID: ${sourceTxId})` : '');
       }
       return newCredits;
     } catch (error) {

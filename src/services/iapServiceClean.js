@@ -1,4 +1,5 @@
 import CreditService from './creditService';
+import ProcessedTransactions from './processedTransactions';
 import { Alert } from 'react-native';
 import * as InAppPurchases from 'expo-in-app-purchases';
 
@@ -77,62 +78,97 @@ class CleanIAPService {
 
   /**
    * App.js'den VEYA Service'in kendisinden çağrılacak
+   * @param {object} purchase - Purchase object from IAP
+   * @param {string} txIdFromCaller - Transaction ID (optional, will be derived if not provided)
+   * @returns {Promise<boolean>} - true if successfully processed
    */
-  static async handleSuccessfulPurchase(purchase) {
-    console.log('Service: Handling successful purchase:', purchase.productId);
-    safeAlert('💰 HANDLING PURCHASE', `ID: ${purchase.productId}\nAck: ${purchase.acknowledged}`);
-
-    const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
-    if (!packageInfo) {
-      console.error('Unknown product:', purchase.productId);
-      safeAlert('❌ UNKNOWN PRODUCT', purchase.productId);
-      return false;
-    }
-
-    safeAlert('📦 PACKAGE FOUND', `Credits: ${packageInfo.credits}\nPrice: ${packageInfo.price}`);
-
+  static async handleSuccessfulPurchase(purchase, txIdFromCaller = null) {
     try {
-      // Eğer acknowledged ise kredi ekleme (restore durumu)
-      if (purchase.acknowledged === true) {
-        console.log('Already acknowledged, finishing only with consumeItem=true');
-        safeAlert('⚠️ ALREADY ACK', 'Already acknowledged=true\nSKIPPING credit add\nFinishing with consumeItem=true');
+      // Get or derive transaction ID
+      const txId = txIdFromCaller || 
+                   purchase.transactionIdentifier || 
+                   purchase.orderId || 
+                   purchase.transactionId || 
+                   `${purchase.productId}_${purchase.transactionDate}`;
+      
+      console.log('Service: Handling purchase:', purchase.productId, 'TxID:', txId);
+      safeAlert('💰 HANDLING', `Product: ${purchase.productId}\nTxID: ${txId}`);
+
+      // Double-check dedupe (safety layer)
+      const alreadyProcessed = await ProcessedTransactions.has(txId);
+      if (alreadyProcessed) {
+        console.log('⚠️ Already processed (safety check):', txId);
+        safeAlert('⚠️ ALREADY PROCESSED', `TxID: ${txId}\nJust finishing...`);
         try {
           await InAppPurchases.finishTransactionAsync(purchase, true);
-          console.log('Already ack item finished');
-          safeAlert('✅ ACK FINISHED', 'Already ack item finished (consumed)');
         } catch (e) {
           console.error('Finish error:', e);
-          safeAlert('❌ FINISH ERROR', e.message);
         }
         return false;
       }
 
-      // Kredi ekle
-      console.log('Adding credits:', packageInfo.credits);
-      safeAlert('💳 ADDING CREDITS', `Adding ${packageInfo.credits} credits...`);
-      
-      await CreditService.addCredits(packageInfo.credits);
-      console.log('Credits added!');
-      
-      const newTotal = await CreditService.getCredits();
-      safeAlert('✅ CREDITS ADDED', `Added: ${packageInfo.credits}\nNew Total: ${newTotal}`);
-      
-      // Transaction bitir - CONSUMABLE için consumeItem: true
+      // Check package
+      const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
+      if (!packageInfo) {
+        console.error('❌ Unknown product:', purchase.productId);
+        safeAlert('❌ UNKNOWN PRODUCT', purchase.productId);
+        return false;
+      }
+
+      safeAlert('📦 PACKAGE', `Credits: ${packageInfo.credits}`);
+
+      // If acknowledged true -> just finish (but still mark as processed)
+      if (purchase.acknowledged === true) {
+        console.log('⚠️ Already acknowledged, finishing only');
+        safeAlert('⚠️ ALREADY ACK', 'acknowledged=true\nJust finishing');
+        try {
+          await InAppPurchases.finishTransactionAsync(purchase, true);
+          await ProcessedTransactions.mark(txId);
+        } catch (e) {
+          console.error('Finish error:', e);
+        }
+        return false;
+      }
+
+      // ADD CREDITS (critical section - wrap in try/catch)
       try {
-        console.log('Finishing transaction with consumeItem=true...');
-        safeAlert('🏁 FINISHING', 'Calling finishTransactionAsync\nconsumeItem=true');
+        console.log('💳 Adding credits:', packageInfo.credits);
+        safeAlert('💳 ADDING CREDITS', `Adding ${packageInfo.credits}...`);
+        
+        await CreditService.addCredits(packageInfo.credits, `iap:${purchase.productId}`);
+        console.log('✅ Credits added!');
+        
+        const newTotal = await CreditService.getCredits();
+        safeAlert('✅ CREDITS ADDED', `Added: ${packageInfo.credits}\nTotal: ${newTotal}`);
+        
+        // Mark as processed AFTER successful credit add
+        await ProcessedTransactions.mark(txId);
+        console.log('✅ Transaction marked as processed');
+        
+      } catch (addErr) {
+        console.error('❌ Failed to add credits:', addErr);
+        safeAlert('❌ ADD CREDITS FAILED', `Error: ${addErr.message}\nDO NOT finish transaction to allow retry`);
+        // DO NOT finish transaction if credit add fails - allow retry
+        return false;
+      }
+
+      // FINISH TRANSACTION (consumeItem=true for consumables)
+      try {
+        console.log('🏁 Finishing transaction...');
+        safeAlert('🏁 FINISHING', 'finishTransactionAsync(consumeItem=true)');
         
         await InAppPurchases.finishTransactionAsync(purchase, true);
-        console.log('Transaction finished!');
-        safeAlert('✅ TRANSACTION FINISHED', 'Transaction finished (consumed)');
+        console.log('✅ Transaction finished!');
+        safeAlert('✅ FINISHED', 'Transaction consumed successfully!');
       } catch (finishError) {
-        console.error('Finish error:', finishError);
+        console.error('⚠️ Finish error:', finishError);
         safeAlert('⚠️ FINISH ERROR', finishError.message);
+        // Continue anyway - credits already added and marked
       }
       
       return true;
     } catch (error) {
-      console.error('Handle purchase error:', error);
+      console.error('❌ handleSuccessfulPurchase main error:', error);
       safeAlert('❌ HANDLE ERROR', error.message);
       return false;
     }
@@ -173,22 +209,21 @@ class CleanIAPService {
         return { success: true, mock: true, totalCredits: total };
       }
 
-      // Call purchase - Listener otomatik yakalayacak
+      // Call purchase - Trust the listener to handle it
       console.log('Service: Calling purchaseItemAsync...');
-      safeAlert('📱 CALLING APPLE', `Calling purchaseItemAsync\nProduct: ${productId}`);
+      safeAlert('📱 CALLING APPLE', `Product: ${productId}\nListener will handle the result`);
       
       try {
         await InAppPurchases.purchaseItemAsync(productId);
-        console.log('Service: purchaseItemAsync returned successfully');
-        safeAlert('✅ APPLE CALLED', 'purchaseItemAsync returned\nApp.js listener will catch the result');
+        console.log('✅ purchaseItemAsync returned successfully');
+        safeAlert('✅ APPLE CALLED', 'purchaseItemAsync returned\nWaiting for listener to process...');
         
-        // Başarıyla çağrıldı, sonuç App.js listener'dan gelecek
-        // PurchaseScreen'e "pending" döndür
+        // Return pending - PurchaseScreen will poll for credit increase
         return { status: 'pending' };
         
       } catch (purchaseError) {
-        console.error('Service: purchaseItemAsync error:', purchaseError);
-        safeAlert('❌ APPLE ERROR', `Code: ${purchaseError.code}\nMessage: ${purchaseError.message}`);
+        console.error('❌ purchaseItemAsync error:', purchaseError);
+        safeAlert('❌ PURCHASE ERROR', `Code: ${purchaseError.code}\nMessage: ${purchaseError.message}`);
         
         // User canceled
         if (purchaseError.code === 'USER_CANCELED' || 
@@ -197,7 +232,7 @@ class CleanIAPService {
           throw new Error('İptal edildi');
         }
         
-        // Diğer hatalar
+        // Other errors
         throw purchaseError;
       }
 

@@ -267,9 +267,9 @@ const PurchaseScreen = ({ navigation }) => {
       if (result && result.status === 'pending') {
         console.log('Purchase pending, waiting for App.js listener...');
         
-        // Kredileri her 500ms'de bir kontrol et (max 30 saniye)
+        // Kredileri her 500ms'de bir kontrol et (max 45 saniye - hybrid approach için)
         let checkCount = 0;
-        const maxChecks = 60; // 30 saniye
+        const maxChecks = 90; // 45 saniye
         
         const checkInterval = setInterval(async () => {
           checkCount++;

@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FirstTimeService from './src/services/firstTimeService';
 import CleanIAPService from './src/services/iapServiceClean';
+import ProcessedTransactions from './src/services/processedTransactions';
 import * as InAppPurchases from 'expo-in-app-purchases';
 import { Alert } from 'react-native';
 
@@ -22,123 +23,156 @@ import { LanguageProvider } from './src/contexts/LanguageContext';
 
 const Stack = createStackNavigator();
 
-// Global flag to ignore listener during cleanup
-let isCleanupPhase = true;
-
 export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState(null);
 
   useEffect(() => {
-    // GLOBAL IAP LISTENER - KRİTİK: HEMEN KUR!
-    console.log('App mounted, setting up IAP listener...');
+    // GLOBAL IAP SETUP - ROBUST DEDUPE ARCHITECTURE
+    console.log('App mounted, setting up IAP...');
     
-    // Reset cleanup flag
-    isCleanupPhase = true;
+    let isMounted = true;
     
-    // LISTENER'I HEMEN KUR (async işlemlerden önce)
-    try {
-      InAppPurchases.setPurchaseListener(async (result) => {
-        console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
-        console.log('App.js: Result:', JSON.stringify(result));
-        
-        // CRITICAL: Ignore listener during cleanup phase!
-        if (isCleanupPhase) {
-          console.log('App.js: IGNORED - Cleanup phase active');
-          setTimeout(() => {
-            Alert.alert('🛑 LISTENER IGNORED', 'Cleanup phase is active\nListener will activate after cleanup');
-          }, 100);
-          return;
-        }
-        
-        // DEBUG ALERT - KRİTİK!
-        setTimeout(() => {
-          Alert.alert(
-            '🔔 APP LISTENER TRIGGERED!', 
-            `Code: ${result?.responseCode}\nResults: ${result?.results?.length || 0}\nError: ${result?.errorCode || 'none'}`
-          );
-        }, 100);
-        
-        if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
-          if (result.results && result.results.length > 0) {
-            for (const purchase of result.results) {
-              console.log('App.js: Processing purchase', purchase.productId);
-              // Delegate to Service
-              await CleanIAPService.handleSuccessfulPurchase(purchase);
-            }
-          }
-        } else if (result?.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-          console.log('App.js: User canceled');
-          Alert.alert('🚫 USER CANCELED', 'User canceled the purchase');
-        } else {
-          console.log('App.js: Other response', result?.responseCode);
-          Alert.alert('⚠️ OTHER RESPONSE', `Code: ${result?.responseCode}`);
-        }
-      });
-      console.log('App.js: Listener set!');
-      Alert.alert('✅ LISTENER SET', 'Purchase listener is now set\n⏸️ Paused during cleanup phase');
-    } catch (listenerErr) {
-      console.error('App.js: Listener error:', listenerErr);
-      Alert.alert('❌ LISTENER ERROR', listenerErr.message);
-    }
-    
-    // SONRA async işlemleri yap
     const setupIAP = async () => {
       try {
-        // Connect
+        // 1. Connect to IAP
         await InAppPurchases.connectAsync();
-        console.log('App.js: IAP Connected');
+        console.log('✅ IAP Connected');
         Alert.alert('✅ IAP CONNECTED', 'Connected to Apple IAP');
         
-        // CLEANUP PENDING TRANSACTIONS - KRITIK! CONSUMABLE için consumeItem: true
+        // 2. SET LISTENER - AFTER connect, with DEDUPE
+        InAppPurchases.setPurchaseListener(async (result) => {
+          try {
+            console.log('🔔 LISTENER TRIGGERED:', result?.responseCode);
+            
+            // Basic response code handling
+            if (result?.responseCode === InAppPurchases.IAPResponseCode.OK) {
+              Alert.alert('🔔 LISTENER OK', `Processing ${result?.results?.length || 0} items`);
+              
+              const results = result.results || [];
+              for (const purchase of results) {
+                // CRITICAL: Validate purchaseState FIRST
+                if (purchase.purchaseState !== InAppPurchases.IAPPurchaseState.PURCHASED) {
+                  console.log('⚠️ Not PURCHASED state, skipping:', purchase.purchaseState);
+                  continue;
+                }
+                
+                // Get stable transaction ID
+                const txId = purchase.transactionIdentifier || purchase.orderId || purchase.transactionId || `${purchase.productId}_${purchase.transactionDate}`;
+                console.log('📝 Transaction ID:', txId);
+                
+                // Deduplicate
+                const alreadyProcessed = await ProcessedTransactions.has(txId);
+                if (alreadyProcessed) {
+                  console.log('✓ Already processed tx:', txId);
+                  Alert.alert('ℹ️ ALREADY PROCESSED', `Transaction ${txId} already processed, skipping`);
+                  // Still try to finish to clear from Apple queue
+                  try {
+                    await InAppPurchases.finishTransactionAsync(purchase, true);
+                  } catch (e) {
+                    console.error('Finish error:', e);
+                  }
+                  continue;
+                }
+                
+                // Process the purchase
+                console.log('🔄 Processing new purchase:', txId);
+                const handled = await CleanIAPService.handleSuccessfulPurchase(purchase, txId);
+                
+                if (handled) {
+                  await ProcessedTransactions.mark(txId);
+                  Alert.alert('✅ PURCHASE SUCCESS', `Transaction ${txId} processed successfully!`);
+                } else {
+                  console.warn('⚠️ handleSuccessfulPurchase returned false for', txId);
+                }
+              }
+            } else if (result?.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+              console.log('🚫 User canceled');
+              Alert.alert('🚫 CANCELED', 'Purchase was canceled');
+            } else {
+              console.log('⚠️ Other response code:', result?.responseCode);
+              Alert.alert('⚠️ OTHER RESPONSE', `Code: ${result?.responseCode}`);
+            }
+          } catch (listenerError) {
+            console.error('❌ Listener error:', listenerError);
+            Alert.alert('❌ LISTENER ERROR', listenerError.message);
+          }
+        });
+        
+        console.log('✅ Listener set with dedupe');
+        Alert.alert('✅ LISTENER SET', 'Purchase listener is active with deduplication');
+        
+        // 3. Cleanup old transaction records (30 days+)
+        await ProcessedTransactions.cleanup();
+        
+        // 4. Optional: Process any pending transactions from history
+        // (This is safe now with dedupe)
         try {
-          console.log('App.js: Checking for pending transactions...');
+          console.log('🧹 Checking for pending transactions...');
           const history = await InAppPurchases.getPurchaseHistoryAsync();
           
           if (history && history.results && history.results.length > 0) {
-            console.log('App.js: Found', history.results.length, 'pending transactions, cleaning...');
-            Alert.alert('🧹 CLEANUP START', `Found ${history.results.length} pending items\nCleaning with consumeItem=true...`);
+            console.log('📋 Found', history.results.length, 'items in history');
+            Alert.alert('🧹 PROCESSING HISTORY', `Found ${history.results.length} items, processing with dedupe...`);
             
-            let cleanedCount = 0;
+            // Process each with dedupe (safe)
             for (const purchase of history.results) {
-              if (purchase) {
-                console.log('App.js: Finishing:', purchase.productId, 'acknowledged:', purchase.acknowledged);
+              if (!purchase) continue;
+              
+              const txId = purchase.transactionIdentifier || purchase.orderId || purchase.transactionId || `${purchase.productId}_${purchase.transactionDate}`;
+              
+              const alreadyProcessed = await ProcessedTransactions.has(txId);
+              if (alreadyProcessed) {
+                // Already processed, just finish
                 try {
-                  // CONSUMABLE için consumeItem: true (ikinci parametre)
                   await InAppPurchases.finishTransactionAsync(purchase, true);
-                  cleanedCount++;
-                  console.log('App.js: Cleaned:', purchase.productId);
-                } catch (finishErr) {
-                  console.error('App.js: Finish error:', finishErr);
+                  console.log('✓ Finished already processed:', txId);
+                } catch (e) {
+                  console.error('Finish error:', e);
+                }
+              } else {
+                // New transaction, process it
+                console.log('🔄 Processing history item:', txId);
+                const handled = await CleanIAPService.handleSuccessfulPurchase(purchase, txId);
+                if (handled) {
+                  await ProcessedTransactions.mark(txId);
                 }
               }
             }
-            console.log('App.js: Cleanup done, cleaned:', cleanedCount);
-            Alert.alert('✅ CLEANUP DONE', `Cleaned ${cleanedCount}/${history.results.length} items`);
+            
+            Alert.alert('✅ HISTORY PROCESSED', 'All pending transactions processed with dedupe');
           } else {
-            console.log('App.js: No pending transactions');
-            Alert.alert('✅ CLEANUP DONE', 'No pending transactions');
+            console.log('✓ No pending transactions');
+            Alert.alert('✅ NO PENDING', 'No pending transactions found');
           }
         } catch (historyErr) {
-          console.error('App.js: History cleanup error:', historyErr);
-          Alert.alert('❌ CLEANUP ERROR', historyErr.message);
+          console.error('❌ History error:', historyErr);
+          Alert.alert('❌ HISTORY ERROR', historyErr.message);
         }
         
-        // CLEANUP PHASE BİTTİ - Listener'ı aktif et!
-        isCleanupPhase = false;
-        console.log('App.js: Cleanup phase ended, listener is now ACTIVE');
-        Alert.alert('✅ LISTENER ACTIVE', '🎉 Purchase listener is now monitoring!\n\nYou can now make purchases safely.');
+        console.log('✅ IAP Setup complete');
+        Alert.alert('✅ IAP READY', '🎉 IAP is ready for purchases!');
         
       } catch (e) {
-        console.error('App.js: IAP Setup error:', e);
+        console.error('❌ IAP Setup error:', e);
         Alert.alert('❌ IAP SETUP ERROR', e.message);
-        // Hata olsa bile listener'ı aktif et
-        isCleanupPhase = false;
       }
     };
     
     setupIAP();
     
     checkFirstLaunch();
+    
+    // Cleanup on unmount
+    return () => {
+      isMounted = false;
+      try {
+        InAppPurchases.setPurchaseListener(null);
+        InAppPurchases.disconnectAsync();
+        console.log('✅ IAP disconnected');
+      } catch (e) {
+        console.error('Disconnect error:', e);
+      }
+    };
   }, []);
 
   const checkFirstLaunch = async () => {
