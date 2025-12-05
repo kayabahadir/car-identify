@@ -1,9 +1,11 @@
 import CreditService from './creditService';
 import { Alert } from 'react-native';
+import * as InAppPurchases from 'expo-in-app-purchases';
 
 /**
- * v1.0.50 - GLOBAL LISTENER ARCHITECTURE
- * Listener App.js'de, burada sadece yardımcı metodlar
+ * v1.0.55 - FIXED MODULE INSTANCE + AUTO LISTENER
+ * CRITICAL FIX: App.js ve Service aynı InAppPurchases instance'ını kullanıyor
+ * Listener otomatik çalışacak, manuel history check kaldırıldı
  */
 
 // Güvenli Alert Helper
@@ -17,14 +19,12 @@ const safeAlert = (title, message) => {
   }, 100);
 };
 
-// Güvenli IAP import
-let InAppPurchases = null;
+// IAP availability check
 let IAPAvailable = false;
 
 try {
-  InAppPurchases = require('expo-in-app-purchases');
-  IAPAvailable = true;
-  console.log('IAP module loaded');
+  IAPAvailable = !!InAppPurchases && !!InAppPurchases.connectAsync;
+  console.log('IAP module available:', IAPAvailable);
 } catch (e) {
   console.log('IAP module not available');
 }
@@ -76,11 +76,11 @@ class CleanIAPService {
   }
 
   /**
-   * App.js'den çağrılacak - Satın alma başarılı olduğunda
+   * App.js'den VEYA Service'in kendisinden çağrılacak
    */
   static async handleSuccessfulPurchase(purchase) {
     console.log('Service: Handling successful purchase:', purchase.productId);
-    safeAlert('💰 HANDLING PURCHASE', `ID: ${purchase.productId}`);
+    safeAlert('💰 HANDLING PURCHASE', `ID: ${purchase.productId}\nAck: ${purchase.acknowledged}`);
 
     const packageInfo = this.CREDIT_PACKAGES[purchase.productId];
     if (!packageInfo) {
@@ -89,13 +89,16 @@ class CleanIAPService {
       return false;
     }
 
+    safeAlert('📦 PACKAGE FOUND', `Credits: ${packageInfo.credits}\nPrice: ${packageInfo.price}`);
+
     try {
       // Eğer acknowledged ise kredi ekleme (restore durumu)
-      if (purchase.acknowledged) {
+      if (purchase.acknowledged === true) {
         console.log('Already acknowledged, finishing only with consumeItem=true');
-        safeAlert('⚠️ ALREADY ACK', 'Already acknowledged\nFinishing with consumeItem=true');
+        safeAlert('⚠️ ALREADY ACK', 'Already acknowledged=true\nSKIPPING credit add\nFinishing with consumeItem=true');
         try {
           await InAppPurchases.finishTransactionAsync(purchase, true);
+          console.log('Already ack item finished');
           safeAlert('✅ ACK FINISHED', 'Already ack item finished (consumed)');
         } catch (e) {
           console.error('Finish error:', e);
@@ -106,16 +109,22 @@ class CleanIAPService {
 
       // Kredi ekle
       console.log('Adding credits:', packageInfo.credits);
+      safeAlert('💳 ADDING CREDITS', `Adding ${packageInfo.credits} credits...`);
+      
       await CreditService.addCredits(packageInfo.credits);
       console.log('Credits added!');
-      safeAlert('✅ CREDITS ADDED', `Added: ${packageInfo.credits}`);
+      
+      const newTotal = await CreditService.getCredits();
+      safeAlert('✅ CREDITS ADDED', `Added: ${packageInfo.credits}\nNew Total: ${newTotal}`);
       
       // Transaction bitir - CONSUMABLE için consumeItem: true
       try {
         console.log('Finishing transaction with consumeItem=true...');
+        safeAlert('🏁 FINISHING', 'Calling finishTransactionAsync\nconsumeItem=true');
+        
         await InAppPurchases.finishTransactionAsync(purchase, true);
         console.log('Transaction finished!');
-        safeAlert('✅ FINISHED', 'Transaction finished (consumed)');
+        safeAlert('✅ TRANSACTION FINISHED', 'Transaction finished (consumed)');
       } catch (finishError) {
         console.error('Finish error:', finishError);
         safeAlert('⚠️ FINISH ERROR', finishError.message);
@@ -164,16 +173,16 @@ class CleanIAPService {
         return { success: true, mock: true, totalCredits: total };
       }
 
-      // Call purchase - sonucu beklemiyoruz, App.js listener yakalar
+      // Call purchase - Listener otomatik yakalayacak
       console.log('Service: Calling purchaseItemAsync...');
       safeAlert('📱 CALLING APPLE', `Calling purchaseItemAsync\nProduct: ${productId}`);
       
       try {
         await InAppPurchases.purchaseItemAsync(productId);
-        console.log('Service: purchaseItemAsync returned');
-        safeAlert('✅ APPLE CALLED', 'purchaseItemAsync returned successfully\nWaiting for App.js listener...');
+        console.log('Service: purchaseItemAsync returned successfully');
+        safeAlert('✅ APPLE CALLED', 'purchaseItemAsync returned\nApp.js listener will catch the result');
         
-        // Başarıyla çağrıldı, sonuç App.js'den gelecek
+        // Başarıyla çağrıldı, sonuç App.js listener'dan gelecek
         // PurchaseScreen'e "pending" döndür
         return { status: 'pending' };
         
@@ -188,8 +197,7 @@ class CleanIAPService {
           throw new Error('İptal edildi');
         }
         
-        // "Already owned" durumunda bile hata fırlat
-        // (App.js listener eğer gerçekten bir işlem varsa yakalayacak)
+        // Diğer hatalar
         throw purchaseError;
       }
 

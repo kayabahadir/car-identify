@@ -22,6 +22,9 @@ import { LanguageProvider } from './src/contexts/LanguageContext';
 
 const Stack = createStackNavigator();
 
+// Global flag to ignore listener during cleanup
+let isCleanupPhase = true;
+
 export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState(null);
 
@@ -29,14 +32,30 @@ export default function App() {
     // GLOBAL IAP LISTENER - KRİTİK: HEMEN KUR!
     console.log('App mounted, setting up IAP listener...');
     
+    // Reset cleanup flag
+    isCleanupPhase = true;
+    
     // LISTENER'I HEMEN KUR (async işlemlerden önce)
     try {
       InAppPurchases.setPurchaseListener(async (result) => {
         console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
+        console.log('App.js: Result:', JSON.stringify(result));
         
-        // DEBUG ALERT
+        // CRITICAL: Ignore listener during cleanup phase!
+        if (isCleanupPhase) {
+          console.log('App.js: IGNORED - Cleanup phase active');
+          setTimeout(() => {
+            Alert.alert('🛑 LISTENER IGNORED', 'Cleanup phase is active\nListener will activate after cleanup');
+          }, 100);
+          return;
+        }
+        
+        // DEBUG ALERT - KRİTİK!
         setTimeout(() => {
-          Alert.alert('🔔 APP LISTENER', `Code: ${result?.responseCode}\nResults: ${result?.results?.length || 0}`);
+          Alert.alert(
+            '🔔 APP LISTENER TRIGGERED!', 
+            `Code: ${result?.responseCode}\nResults: ${result?.results?.length || 0}\nError: ${result?.errorCode || 'none'}`
+          );
         }, 100);
         
         if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
@@ -56,7 +75,7 @@ export default function App() {
         }
       });
       console.log('App.js: Listener set!');
-      Alert.alert('✅ LISTENER SET', 'Purchase listener is now active');
+      Alert.alert('✅ LISTENER SET', 'Purchase listener is now set\n⏸️ Paused during cleanup phase');
     } catch (listenerErr) {
       console.error('App.js: Listener error:', listenerErr);
       Alert.alert('❌ LISTENER ERROR', listenerErr.message);
@@ -103,9 +122,17 @@ export default function App() {
           console.error('App.js: History cleanup error:', historyErr);
           Alert.alert('❌ CLEANUP ERROR', historyErr.message);
         }
+        
+        // CLEANUP PHASE BİTTİ - Listener'ı aktif et!
+        isCleanupPhase = false;
+        console.log('App.js: Cleanup phase ended, listener is now ACTIVE');
+        Alert.alert('✅ LISTENER ACTIVE', '🎉 Purchase listener is now monitoring!\n\nYou can now make purchases safely.');
+        
       } catch (e) {
         console.error('App.js: IAP Setup error:', e);
         Alert.alert('❌ IAP SETUP ERROR', e.message);
+        // Hata olsa bile listener'ı aktif et
+        isCleanupPhase = false;
       }
     };
     
