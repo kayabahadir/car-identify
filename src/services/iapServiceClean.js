@@ -92,12 +92,14 @@ class CleanIAPService {
     try {
       // Eğer acknowledged ise kredi ekleme (restore durumu)
       if (purchase.acknowledged) {
-        console.log('Already acknowledged, finishing only');
-        safeAlert('⚠️ ALREADY ACK', 'Already acknowledged, finishing only');
+        console.log('Already acknowledged, finishing only with consumeItem=true');
+        safeAlert('⚠️ ALREADY ACK', 'Already acknowledged\nFinishing with consumeItem=true');
         try {
-          await InAppPurchases.finishTransactionAsync(purchase);
+          await InAppPurchases.finishTransactionAsync(purchase, true);
+          safeAlert('✅ ACK FINISHED', 'Already ack item finished (consumed)');
         } catch (e) {
           console.error('Finish error:', e);
+          safeAlert('❌ FINISH ERROR', e.message);
         }
         return false;
       }
@@ -108,14 +110,15 @@ class CleanIAPService {
       console.log('Credits added!');
       safeAlert('✅ CREDITS ADDED', `Added: ${packageInfo.credits}`);
       
-      // Transaction bitir
+      // Transaction bitir - CONSUMABLE için consumeItem: true
       try {
-        console.log('Finishing transaction...');
-        await InAppPurchases.finishTransactionAsync(purchase);
+        console.log('Finishing transaction with consumeItem=true...');
+        await InAppPurchases.finishTransactionAsync(purchase, true);
         console.log('Transaction finished!');
-        safeAlert('✅ FINISHED', 'Transaction finished');
+        safeAlert('✅ FINISHED', 'Transaction finished (consumed)');
       } catch (finishError) {
         console.error('Finish error:', finishError);
+        safeAlert('⚠️ FINISH ERROR', finishError.message);
       }
       
       return true;

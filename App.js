@@ -26,33 +26,75 @@ export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState(null);
 
   useEffect(() => {
-    // GLOBAL IAP LISTENER
+    // GLOBAL IAP LISTENER - KRİTİK: HEMEN KUR!
     console.log('App mounted, setting up IAP listener...');
     
+    // LISTENER'I HEMEN KUR (async işlemlerden önce)
+    try {
+      InAppPurchases.setPurchaseListener(async (result) => {
+        console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
+        
+        // DEBUG ALERT
+        setTimeout(() => {
+          Alert.alert('🔔 APP LISTENER', `Code: ${result?.responseCode}\nResults: ${result?.results?.length || 0}`);
+        }, 100);
+        
+        if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
+          if (result.results && result.results.length > 0) {
+            for (const purchase of result.results) {
+              console.log('App.js: Processing purchase', purchase.productId);
+              // Delegate to Service
+              await CleanIAPService.handleSuccessfulPurchase(purchase);
+            }
+          }
+        } else if (result?.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+          console.log('App.js: User canceled');
+          Alert.alert('🚫 USER CANCELED', 'User canceled the purchase');
+        } else {
+          console.log('App.js: Other response', result?.responseCode);
+          Alert.alert('⚠️ OTHER RESPONSE', `Code: ${result?.responseCode}`);
+        }
+      });
+      console.log('App.js: Listener set!');
+      Alert.alert('✅ LISTENER SET', 'Purchase listener is now active');
+    } catch (listenerErr) {
+      console.error('App.js: Listener error:', listenerErr);
+      Alert.alert('❌ LISTENER ERROR', listenerErr.message);
+    }
+    
+    // SONRA async işlemleri yap
     const setupIAP = async () => {
       try {
         // Connect
         await InAppPurchases.connectAsync();
         console.log('App.js: IAP Connected');
-        Alert.alert('✅ IAP SETUP', 'IAP Connected');
+        Alert.alert('✅ IAP CONNECTED', 'Connected to Apple IAP');
         
-        // CLEANUP PENDING TRANSACTIONS - KRITIK!
+        // CLEANUP PENDING TRANSACTIONS - KRITIK! CONSUMABLE için consumeItem: true
         try {
           console.log('App.js: Checking for pending transactions...');
           const history = await InAppPurchases.getPurchaseHistoryAsync();
           
           if (history && history.results && history.results.length > 0) {
             console.log('App.js: Found', history.results.length, 'pending transactions, cleaning...');
-            Alert.alert('🧹 CLEANUP', `Found ${history.results.length} pending items`);
+            Alert.alert('🧹 CLEANUP START', `Found ${history.results.length} pending items\nCleaning with consumeItem=true...`);
             
+            let cleanedCount = 0;
             for (const purchase of history.results) {
-              if (purchase && !purchase.acknowledged) {
-                console.log('App.js: Finishing pending:', purchase.productId);
-                await InAppPurchases.finishTransactionAsync(purchase, false);
+              if (purchase) {
+                console.log('App.js: Finishing:', purchase.productId, 'acknowledged:', purchase.acknowledged);
+                try {
+                  // CONSUMABLE için consumeItem: true (ikinci parametre)
+                  await InAppPurchases.finishTransactionAsync(purchase, true);
+                  cleanedCount++;
+                  console.log('App.js: Cleaned:', purchase.productId);
+                } catch (finishErr) {
+                  console.error('App.js: Finish error:', finishErr);
+                }
               }
             }
-            console.log('App.js: Cleanup done');
-            Alert.alert('✅ CLEANUP DONE', 'All pending items cleaned');
+            console.log('App.js: Cleanup done, cleaned:', cleanedCount);
+            Alert.alert('✅ CLEANUP DONE', `Cleaned ${cleanedCount}/${history.results.length} items`);
           } else {
             console.log('App.js: No pending transactions');
             Alert.alert('✅ CLEANUP DONE', 'No pending transactions');
@@ -61,32 +103,9 @@ export default function App() {
           console.error('App.js: History cleanup error:', historyErr);
           Alert.alert('❌ CLEANUP ERROR', historyErr.message);
         }
-        
-        // SET LISTENER
-        InAppPurchases.setPurchaseListener(async (result) => {
-          console.log('App.js: LISTENER TRIGGERED', result?.responseCode);
-          
-          // DEBUG ALERT
-          try {
-            Alert.alert('🔔 APP LISTENER', `Code: ${result?.responseCode}`);
-          } catch (e) {}
-          
-          if (result && result.responseCode === InAppPurchases.IAPResponseCode.OK) {
-            if (result.results && result.results.length > 0) {
-              for (const purchase of result.results) {
-                console.log('App.js: Processing purchase', purchase.productId);
-                // Delegate to Service
-                await CleanIAPService.handleSuccessfulPurchase(purchase);
-              }
-            }
-          } else if (result?.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-            console.log('App.js: User canceled');
-          } else {
-             console.log('App.js: Other response', result?.responseCode);
-          }
-        });
       } catch (e) {
         console.error('App.js: IAP Setup error:', e);
+        Alert.alert('❌ IAP SETUP ERROR', e.message);
       }
     };
     
