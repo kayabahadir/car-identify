@@ -346,13 +346,24 @@ const HomeScreen = ({ navigation, route }) => {
              t('needCreditsToAnalyze')}
           </Text>
           {!creditInfo.canUse && (
-            <TouchableOpacity 
-              style={styles.buyCreditsButton}
-              onPress={() => navigation.navigate('Purchase')}
-              disabled={purchaseLoading}
-            >
-              <Text style={styles.buyCreditsText}>{t('buyCredits')}</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={styles.buyCreditsButton}
+                onPress={() => navigation.navigate('CreditsStore')}
+                disabled={purchaseLoading}
+              >
+                <Ionicons name="cart" size={16} color="white" style={styles.buttonIcon} />
+                <Text style={styles.buyCreditsText}>Open Credits Store</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.buyCreditsButtonSecondary}
+                onPress={() => navigation.navigate('Purchase')}
+                disabled={purchaseLoading}
+              >
+                <Text style={styles.buyCreditsTextSecondary}>Old Store (Legacy)</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -857,6 +868,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: getPadding(20, 28, 35),
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     // iPad'de daha büyük minimum boyut
     minHeight: getSpacing(45, 60, 75),
     // iPad Mini için daha kompakt
@@ -865,6 +877,28 @@ const styles = StyleSheet.create({
       paddingHorizontal: getPadding(16, 24, 30),
       minHeight: getSpacing(40, 55, 70)
     }),
+  },
+  buyCreditsButtonSecondary: {
+    backgroundColor: '#ffffff',
+    borderRadius: getBorderRadius(12, 16, 20),
+    paddingVertical: getPadding(10, 14, 18),
+    paddingHorizontal: getPadding(20, 28, 35),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginTop: getMargin(8, 12, 15),
+    // iPad'de daha büyük minimum boyut
+    minHeight: getSpacing(40, 50, 60),
+    // iPad Mini için daha kompakt
+    ...(isTablet && !isLargeTablet && { 
+      paddingVertical: getPadding(8, 12, 16),
+      paddingHorizontal: getPadding(16, 24, 30),
+      minHeight: getSpacing(35, 45, 55)
+    }),
+  },
+  buttonIcon: {
+    marginRight: getMargin(8, 10, 12),
   },
   // Geliştirici modu stilleri
   developerContainer: {
@@ -950,6 +984,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
+  },
+  buyCreditsTextSecondary: {
+    color: '#666',
+    fontSize: getFontSize(12, 14, 16),
+    fontWeight: '500',
   },
   purchaseLoadingOverlay: {
     position: 'absolute',

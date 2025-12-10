@@ -1,0 +1,15 @@
+# EAS Build Ignore
+# Exclude unnecessary files from EAS Build upload
+
+node_modules/**
+.expo/**
+.expo-shared/**
+android/**
+ios/**
+*.log
+.git/**
+.vscode/**
+.DS_Store
+*.md
+docs/**
+

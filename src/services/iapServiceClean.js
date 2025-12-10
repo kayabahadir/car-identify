@@ -223,6 +223,24 @@ class CleanIAPService {
         
       } catch (purchaseError) {
         console.error('❌ purchaseItemAsync error:', purchaseError);
+        
+        // ÖZEL HATA YAKALAMA: ALREADY OWNED
+        if (purchaseError.code === 'E_ALREADY_OWNED' || 
+            purchaseError.message?.includes('already') ||
+            purchaseError.message?.includes('owned')) {
+          
+          safeAlert('⚠️ KRİTİK UYARI', 
+            'Apple "Bu ürün zaten var" diyor!\n\n' +
+            'SEBEPLER:\n' +
+            '1. Ürün App Store Connect\'te "Non-Consumable" ayarlanmış olabilir. (KONTROL EDİN!)\n' +
+            '2. Sandbox kullanıcısı bug\'a girmiş olabilir. (Yeni Sandbox kullanıcısı açın)\n\n' +
+            'Bu kodla ilgili değil, Apple hesabı/ayarlarıyla ilgilidir.'
+          );
+          
+          // Yine de pending döndürelim, belki listener bir restore yakalar
+          return { status: 'pending' };
+        }
+
         safeAlert('❌ PURCHASE ERROR', `Code: ${purchaseError.code}\nMessage: ${purchaseError.message}`);
         
         // User canceled
