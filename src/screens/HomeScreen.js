@@ -345,25 +345,28 @@ const HomeScreen = ({ navigation, route }) => {
              creditInfo.creditsLeft > 0 ? `${creditInfo.creditsLeft} ${t('analysisRightsRemaining')}` : 
              t('needCreditsToAnalyze')}
           </Text>
+          
+          {/* Credits Store Button - Always Visible */}
+          <TouchableOpacity 
+            style={styles.buyCreditsButton}
+            onPress={() => navigation.navigate('CreditsStore')}
+            disabled={purchaseLoading}
+          >
+            <Ionicons name="cart" size={16} color="white" style={styles.buttonIcon} />
+            <Text style={styles.buyCreditsText}>
+              {creditInfo.canUse ? 'Buy More Credits' : 'Buy Credits'}
+            </Text>
+          </TouchableOpacity>
+          
+          {/* Legacy Store - Only show when no credits */}
           {!creditInfo.canUse && (
-            <>
-              <TouchableOpacity 
-                style={styles.buyCreditsButton}
-                onPress={() => navigation.navigate('CreditsStore')}
-                disabled={purchaseLoading}
-              >
-                <Ionicons name="cart" size={16} color="white" style={styles.buttonIcon} />
-                <Text style={styles.buyCreditsText}>Open Credits Store</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.buyCreditsButtonSecondary}
-                onPress={() => navigation.navigate('Purchase')}
-                disabled={purchaseLoading}
-              >
-                <Text style={styles.buyCreditsTextSecondary}>Old Store (Legacy)</Text>
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity 
+              style={styles.buyCreditsButtonSecondary}
+              onPress={() => navigation.navigate('Purchase')}
+              disabled={purchaseLoading}
+            >
+              <Text style={styles.buyCreditsTextSecondary}>Old Store (Legacy)</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
