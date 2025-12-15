@@ -209,15 +209,19 @@ const CreditsStoreScreen = ({ navigation }) => {
         <View style={styles.features}>
           <View style={styles.featureRow}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-            <Text style={styles.featureText}>Never expires</Text>
+            <Text style={styles.featureText}>Unlimited queries until your credits run out</Text>
           </View>
           <View style={styles.featureRow}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-            <Text style={styles.featureText}>Instant delivery</Text>
+            <Text style={styles.featureText}>Detailed vehicle information</Text>
           </View>
           <View style={styles.featureRow}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-            <Text style={styles.featureText}>Can purchase again</Text>
+            <Text style={styles.featureText}>Past analysis records</Text>
+          </View>
+          <View style={styles.featureRow}>
+            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+            <Text style={styles.featureText}>Can be purchased again</Text>
           </View>
         </View>
 

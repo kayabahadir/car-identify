@@ -74,7 +74,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleBuyCredits = () => {
-    navigation.navigate('Purchase');
+    navigation.navigate('CreditsStore');
   };
 
   // Test özelliği kaldırıldı - production için güvenli

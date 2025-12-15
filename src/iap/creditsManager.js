@@ -8,16 +8,16 @@ import CreditService from '../services/creditService';
 class CreditsManager {
   // Map RevenueCat package IDs to credit amounts
   static PACKAGE_CREDITS = {
-    'pack10': 10,
-    'pack50': 50,
-    'pack200': 200,
+    'pack10': 5,
+    'pack50': 25,
+    'pack200': 100,
   };
 
   // Also support Apple Product IDs for backward compatibility
   static PRODUCT_CREDITS = {
-    'com.caridentify.app.credits.consumable.pack10': 10,
-    'com.caridentify.app.credits.consumable.pack50': 50,
-    'com.caridentify.app.credits.consumable.pack200': 200,
+    'com.caridentify.app.credits.consumable.pack10': 5,
+    'com.caridentify.app.credits.consumable.pack50': 25,
+    'com.caridentify.app.credits.consumable.pack200': 100,
   };
 
   /**
@@ -78,9 +78,9 @@ class CreditsManager {
     
     // Try extracting from product ID string
     if (packageId && typeof packageId === 'string') {
-      if (packageId.includes('pack10')) return 10;
-      if (packageId.includes('pack50')) return 50;
-      if (packageId.includes('pack200')) return 200;
+      if (packageId.includes('pack10')) return 5;
+      if (packageId.includes('pack50')) return 25;
+      if (packageId.includes('pack200')) return 100;
     }
     
     console.warn('CreditsManager: Unknown package ID:', packageId);

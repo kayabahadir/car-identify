@@ -15,7 +15,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
 import FirstTimeService from '../services/firstTimeService';
-import IAPService from '../services/iapService';
 
 // Responsive design utilities
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -98,99 +97,9 @@ const HomeScreen = ({ navigation, route }) => {
 
   // Onboarding'den gelen satın alma işlemini handle et
   const handleOnboardingPurchase = async (packageId) => {
-    setPurchaseLoading(true);
-    
-    // Paket bilgilerini al
-    const packages = {
-      'credits_10_199': {
-        id: 'credits_10_199',
-        credits: 10,
-        price: '$1.99',
-        priceLocal: '₺59.99',
-        title: 'Başlangıç',
-      },
-      'credits_50_699': {
-        id: 'credits_50_699', 
-        credits: 50,
-        price: '$6.99',
-        priceLocal: '₺199.99',
-        title: 'Popüler',
-      },
-      'credits_200_1999': {
-        id: 'credits_200_1999',
-        credits: 200,
-        price: '$19.99', 
-        priceLocal: '₺599.99',
-        title: 'Premium',
-      }
-    };
-
-    const packageInfo = packages[packageId];
-    
-    try {
-      Alert.alert(
-        `🎉 ${t('purchaseConfirmation')}`,
-        `${packageInfo.title} ${t('purchaseConfirmationMessage')
-          .replace('#CREDITS#', packageInfo.credits)
-          .replace('#PRICE#', packageInfo.priceLocal)}`,
-        [
-          {
-            text: t('cancel'),
-            style: 'cancel',
-            onPress: () => setPurchaseLoading(false)
-          },
-          {
-            text: t('buy'),
-            onPress: async () => {
-              try {
-                const iapAvailable = await IAPService.isAvailable();
-                
-                if (iapAvailable) {
-                  try {
-                    // Basit purchase
-                    await IAPService.purchaseProduct(packageInfo.id);
-                    
-                    // Apple UI kapandı, hemen success göster
-                    await FirstTimeService.markFreeAnalysisUsed();
-                    
-                    Alert.alert(
-                      `🎉 ${t('purchaseSuccess')}`,
-                      `${packageInfo.credits} ${t('purchaseSuccessMessage')}`,
-                      [{ text: t('great') }]
-                    );
-                    
-                    // Background'da UI refresh
-                    setTimeout(async () => {
-                      await checkCreditStatus();
-                    }, 1000);
-                  } catch (purchaseError) {
-                    // Satın alma hatası (user cancel, payment fail vs.)
-                    if (purchaseError.message?.includes('iptal') || purchaseError.message?.includes('cancel')) {
-                      // User cancel - sessizce geç
-                      return;
-                    }
-                    throw purchaseError; // Diğer hatalar için dışarıya fırlat
-                  }
-                } else {
-                  Alert.alert(
-                    t('unavailable') || 'Kullanılamıyor',
-                    t('iapUnavailable') || 'Satın almalar şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.'
-                  );
-                }
-              } catch (error) {
-                console.error('Purchase error:', error);
-                Alert.alert(t('error'), t('purchaseError'));
-              } finally {
-                setPurchaseLoading(false);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Error handling onboarding purchase:', error);
-      setPurchaseLoading(false);
-    }
+    // Onboarding'den gelen satın alma isteğini direkt Credits Store'a yönlendir
+    setPurchaseLoading(false);
+    navigation.navigate('CreditsStore');
   };
 
   const handleAnalysisAttempt = async (imagePickerFunction) => {
@@ -357,17 +266,6 @@ const HomeScreen = ({ navigation, route }) => {
               {creditInfo.canUse ? 'Buy More Credits' : 'Buy Credits'}
             </Text>
           </TouchableOpacity>
-          
-          {/* Legacy Store - Only show when no credits */}
-          {!creditInfo.canUse && (
-            <TouchableOpacity 
-              style={styles.buyCreditsButtonSecondary}
-              onPress={() => navigation.navigate('Purchase')}
-              disabled={purchaseLoading}
-            >
-              <Text style={styles.buyCreditsTextSecondary}>Old Store (Legacy)</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
@@ -881,25 +779,6 @@ const styles = StyleSheet.create({
       minHeight: getSpacing(40, 55, 70)
     }),
   },
-  buyCreditsButtonSecondary: {
-    backgroundColor: '#ffffff',
-    borderRadius: getBorderRadius(12, 16, 20),
-    paddingVertical: getPadding(10, 14, 18),
-    paddingHorizontal: getPadding(20, 28, 35),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginTop: getMargin(8, 12, 15),
-    // iPad'de daha büyük minimum boyut
-    minHeight: getSpacing(40, 50, 60),
-    // iPad Mini için daha kompakt
-    ...(isTablet && !isLargeTablet && { 
-      paddingVertical: getPadding(8, 12, 16),
-      paddingHorizontal: getPadding(16, 24, 30),
-      minHeight: getSpacing(35, 45, 55)
-    }),
-  },
   buttonIcon: {
     marginRight: getMargin(8, 10, 12),
   },
@@ -987,11 +866,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: getFontSize(14, 16, 18),
     fontWeight: '600',
-  },
-  buyCreditsTextSecondary: {
-    color: '#666',
-    fontSize: getFontSize(12, 14, 16),
-    fontWeight: '500',
   },
   purchaseLoadingOverlay: {
     position: 'absolute',

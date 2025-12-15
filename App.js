@@ -11,7 +11,6 @@ import { Alert } from 'react-native';
 import HomeScreen from './src/screens/HomeScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
-import PurchaseScreen from './src/screens/PurchaseScreen';
 import CreditsStoreScreen from './src/screens/CreditsStoreScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
@@ -72,7 +71,6 @@ export default function App() {
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Result" component={ResultScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
-            <Stack.Screen name="Purchase" component={PurchaseScreen} />
             <Stack.Screen name="CreditsStore" component={CreditsStoreScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Legal" component={LegalScreen} />
