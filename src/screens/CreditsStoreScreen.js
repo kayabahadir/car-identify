@@ -296,7 +296,9 @@ const CreditsStoreScreen = ({ navigation }) => {
         {/* Package list */}
         <View style={styles.packagesContainer}>
           {packages.length > 0 ? (
-            packages.map(pkg => renderPackage(pkg))
+            packages
+              .sort((a, b) => parseFloat(a.product.price) - parseFloat(b.product.price))
+              .map(pkg => renderPackage(pkg))
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="cart-outline" size={48} color="#9ca3af" />
