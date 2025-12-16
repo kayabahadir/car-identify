@@ -128,13 +128,15 @@ const ResultScreen = ({ navigation, route }) => {
           return; // Don't show demo data for credit issues
         } else if (error.message.includes('Network')) {
           alertTitle = t('connectionError');
+          // Show detailed error message for debugging
+          const errorDetail = `\n\nError: ${error.message}`;
           alertMessage = language === 'tr'
             ? (__DEV__
-              ? 'Ağ bağlantı sorunu. Demo sonuçları gösteriliyor. Lütfen internet bağlantınızı kontrol edin.'
-              : 'Ağ bağlantı sorunu. Lütfen internet bağlantınızı kontrol edin.')
+              ? 'Ağ bağlantı sorunu. Demo sonuçları gösteriliyor. Lütfen internet bağlantınızı kontrol edin.' + errorDetail
+              : 'Ağ bağlantı sorunu. Lütfen internet bağlantınızı kontrol edin.' + errorDetail)
             : (__DEV__
-              ? 'Network connection issue. Showing demo results. Please check your internet connection.'
-              : 'Network connection issue. Please check your internet connection.');
+              ? 'Network connection issue. Showing demo results. Please check your internet connection.' + errorDetail
+              : 'Network connection issue. Please check your internet connection.' + errorDetail);
         }
         
         // Production'da demo mode'a düşme - direkt hata göster ve geri dön
