@@ -36,6 +36,16 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
   console.log('🔍 Current config - USE_PROXY:', USE_PROXY, 'API_BASE:', API_BASE);
   console.log('🔍 Will use URL:', OPENAI_API_URL);
   
+  // DEBUG: Show config in alert (temporary for debugging)
+  if (__DEV__) {
+    const { Alert } = require('react-native');
+    Alert.alert(
+      'DEBUG: API Config',
+      `USE_PROXY: ${USE_PROXY}\nAPI_BASE: ${API_BASE}\nURL: ${OPENAI_API_URL}`,
+      [{ text: 'OK' }]
+    );
+  }
+  
   if (!USE_PROXY && !OPENAI_API_KEY) {
     console.error('❌ Neither proxy nor API key configured!');
     throw new Error('OpenAI API key not configured. Set EXPO_PUBLIC_OPENAI_API_KEY as an EAS Secret or use a secure backend proxy.');
@@ -61,14 +71,20 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
     console.log('📡 Sending request to:', OPENAI_API_URL);
     console.log('📡 Using headers:', USE_PROXY ? 'Proxy mode (x-client-token)' : 'Direct mode (Authorization)');
     
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(USE_PROXY
-          ? (CLIENT_TOKEN ? { 'x-client-token': CLIENT_TOKEN } : {})
-          : { 'Authorization': `Bearer ${OPENAI_API_KEY}` }),
-      },
+    // Create an AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds timeout
+    
+    try {
+      const response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(USE_PROXY
+            ? (CLIENT_TOKEN ? { 'x-client-token': CLIENT_TOKEN } : {})
+            : { 'Authorization': `Bearer ${OPENAI_API_KEY}` }),
+        },
+        signal: controller.signal,
         body: JSON.stringify({
           model: 'gpt-4o-mini',
         messages: [
@@ -202,13 +218,15 @@ FORMAT RULES:
         temperature: 0.3, // Slightly higher for variation in confidence
         // Remove fixed seed for varied results
         response_format: { type: "json_object" }  // Force JSON response
-      }),
-    });
+        }),
+      });
+      
+      clearTimeout(timeoutId);
 
-    // Read raw text first to handle non-JSON error bodies from proxy
-    const rawBody = await response.text();
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response preview:', rawBody?.slice(0, 200));
+      // Read raw text first to handle non-JSON error bodies from proxy
+      const rawBody = await response.text();
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response preview:', rawBody?.slice(0, 200));
     
     if (!response.ok) {
       console.error('❌ Upstream error:', response.status, rawBody?.slice(0,200));
@@ -375,10 +393,18 @@ FORMAT RULES:
     // Store both versions for easy switching
     vehicleData._dualData = dualLanguageData;
 
-    // Başarılı analiz sonrası kredi/hak kullan
-    await CreditService.useAnalysis();
+      // Başarılı analiz sonrası kredi/hak kullan
+      await CreditService.useAnalysis();
 
-    return vehicleData;
+      return vehicleData;
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Network request timed out (90s). The server may be slow or unreachable.');
+      }
+      throw fetchError;
+    }
 
   } catch (error) {
     console.error('Error identifying vehicle:', error);
