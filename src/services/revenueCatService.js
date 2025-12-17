@@ -3,11 +3,13 @@ import { Platform, Alert } from 'react-native';
 import CreditsManager from '../iap/creditsManager';
 
 /**
- * ⚠️ IMPORTANT: Replace this with your actual RevenueCat API key
- * iOS: appl_XXXXXXXXXXXX
- * Android: goog_XXXXXXXXXXXX (if you add Android later)
+ * ⚠️ RevenueCat Configuration
+ * Keys are loaded from environment variables (EAS Secrets)
  */
-const REVENUECAT_API_KEY = 'appl_gOQiytBQrrDQOsbjIpXTGnhveGZ'; // TODO: Replace with your actual key
+const REVENUECAT_API_KEY = Platform.select({
+  ios: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY,
+  android: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY,
+});
 
 /**
  * RevenueCat Service - Handles all IAP operations using RevenueCat

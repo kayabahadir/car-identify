@@ -59,8 +59,8 @@ const ResultScreen = ({ navigation, route }) => {
       try {
         setIsLoading(true);
         
-        // Get dual language data from API (prefer base64 if available)
-        const result = await identifyVehicle({ imageUri, imageBase64 }, language);
+        // Get dual language data from API (imageUri will be compressed in openaiService)
+        const result = await identifyVehicle(imageUri, language);
         
         // Add production years if not provided
         if (!result.productionYears && result.year) {

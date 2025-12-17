@@ -5,11 +5,18 @@ import CreditService from './creditService';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
 const CLIENT_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN;
-const USE_PROXY = !!API_BASE;
+// Enable proxy: Railway solves the timeout issues!
+const USE_PROXY = !!API_BASE; 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const OPENAI_API_URL = USE_PROXY
   ? `${API_BASE}/api/identify`
   : 'https://api.openai.com/v1/chat/completions';
+
+if (__DEV__) {
+  console.log(USE_PROXY 
+    ? '🔒 Using SECURE proxy connection (Railway)' 
+    : '⚠️ Using direct OpenAI (not recommended)');
+}
 
 // Convert new engineOptions format to legacy format for UI compatibility
 export const convertToLegacyFormat = (vehicleData) => {
@@ -61,21 +68,46 @@ export const identifyVehicle = async (imageSource, language = 'tr') => {
   try {
     console.log('✅ Starting analysis with proxy:', USE_PROXY);
     
-    // Determine base64: prefer provided base64, fallback to reading from uri
-    let base64Image = imageSource?.imageBase64;
+    // Always use imageUri and compress it (never use pre-encoded base64)
     const imageUri = imageSource?.imageUri || imageSource; // Backward compatibility if string passed
-    if (!base64Image) {
-      base64Image = await convertImageToBase64Expo(imageUri);
-    }
+    
+    const base64Image = await convertImageToBase64Expo(imageUri);
 
+    // Calculate base64 size for debugging
+    const base64Size = base64Image ? base64Image.length : 0;
+    const base64SizeKB = (base64Size / 1024).toFixed(2);
+    const base64SizeMB = (base64Size / 1024 / 1024).toFixed(2);
+    
     console.log('📡 Sending request to:', OPENAI_API_URL);
     console.log('📡 Using headers:', USE_PROXY ? 'Proxy mode (x-client-token)' : 'Direct mode (Authorization)');
+    console.log(`📦 Base64 image size: ${base64SizeKB} KB (${base64SizeMB} MB)`);
+    
+    // DEBUG: Alert before request with size info
+    if (__DEV__) {
+      const { Alert } = require('react-native');
+      Alert.alert(
+        'DEBUG: Before Request',
+        `URL: ${OPENAI_API_URL}\nProxy: ${USE_PROXY}\nToken: ${CLIENT_TOKEN ? 'Yes' : 'No'}\nImage Size: ${base64SizeKB} KB`,
+        [{ text: 'Continue' }]
+      );
+    }
     
     // Create an AbortController for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds timeout
+    const timeoutId = setTimeout(() => {
+      console.error('❌ Request timeout after 90 seconds');
+      if (__DEV__) {
+        const { Alert } = require('react-native');
+        Alert.alert('DEBUG: Timeout!', 'Request timed out after 90 seconds', [{ text: 'OK' }]);
+      }
+      controller.abort();
+    }, 90000); // 90 seconds timeout
+    
+    console.log('⏱️ Timeout set: 90 seconds');
+    const startTime = Date.now();
     
     try {
+      console.log('🚀 Fetch starting...');
       const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
@@ -208,20 +240,32 @@ FORMAT RULES:
                 type: 'image_url',
                 image_url: {
                   url: `data:image/jpeg;base64,${base64Image}`,
-                  detail: 'low'
+                  detail: 'auto'  // Let OpenAI decide based on image size (balanced speed + quality)
                 }
               }
             ]
           }
         ],
-        max_tokens: 2500,  // Increased for complete responses
-        temperature: 0.3, // Slightly higher for variation in confidence
-        // Remove fixed seed for varied results
+        max_tokens: 3000,  // Increased to ensure complete dual-language response
+        temperature: 0.3,
         response_format: { type: "json_object" }  // Force JSON response
         }),
       });
       
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Fetch completed in ${elapsed}ms`);
+      
       clearTimeout(timeoutId);
+
+      // DEBUG: Alert after response
+      if (__DEV__) {
+        const { Alert } = require('react-native');
+        Alert.alert(
+          'DEBUG: Response Received',
+          `Status: ${response.status}\nTime: ${elapsed}ms\nOK: ${response.ok}`,
+          [{ text: 'Continue' }]
+        );
+      }
 
       // Read raw text first to handle non-JSON error bodies from proxy
       const rawBody = await response.text();
@@ -245,41 +289,58 @@ FORMAT RULES:
       throw new Error('No response content from OpenAI');
     }
 
+    console.log('📄 Full content length:', content.length);
+    console.log('📄 Content preview (first 500 chars):', content.slice(0, 500));
+    console.log('📄 Content preview (last 500 chars):', content.slice(-500));
+
     // Extract JSON from the response
     let jsonStr = content;
     
     // Remove code block markers if present
-    jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     
-    // Find JSON object - try multiple patterns
-    let jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    // Find the LAST complete JSON object (greedy match to get full content)
+    // Use greedy matching to capture the entire JSON structure
+    let jsonMatch = jsonStr.match(/\{[\s\S]*\}/g);
     
-    if (!jsonMatch) {
+    if (!jsonMatch || jsonMatch.length === 0) {
+      console.log('⚠️ First pattern failed, trying alternatives...');
       // Try finding JSON with different patterns
       const patterns = [
-        /```json\s*(\{[\s\S]*?\})\s*```/,  // JSON in code blocks
-        /(\{[\s\S]*?\})/,                  // Any JSON object
-        /```(\{[\s\S]*?\})```/             // JSON in plain code blocks
+        /```json\s*(\{[\s\S]*\})\s*```/,  // JSON in code blocks (greedy)
+        /(\{[\s\S]*\})/,                  // Any JSON object (greedy)
+        /```(\{[\s\S]*\})```/             // JSON in plain code blocks (greedy)
       ];
       
       for (const pattern of patterns) {
         const match = content.match(pattern);
         if (match) {
+          console.log('✅ Found match with alternative pattern');
           jsonMatch = [match[1] || match[0]];
           break;
         }
       }
+    } else {
+      // Take the last (longest) match
+      jsonMatch = [jsonMatch[jsonMatch.length - 1]];
     }
     
     if (!jsonMatch) {
+      console.error('❌ NO JSON MATCH FOUND IN CONTENT!');
+      console.error('Content type:', typeof content);
+      console.error('Content sample:', content.slice(0, 1000));
       throw new Error('Could not parse vehicle identification data');
     }
 
     let dualLanguageData;
     try {
+      console.log('🔄 Attempting to parse JSON (length:', jsonMatch[0].length, ')');
       dualLanguageData = JSON.parse(jsonMatch[0]);
+      console.log('✅ JSON parsed successfully');
     } catch (parseError) {
-      throw new Error('Could not parse vehicle identification data');
+      console.error('❌ JSON PARSE ERROR:', parseError.message);
+      console.error('JSON string sample:', jsonMatch[0].slice(0, 500));
+      throw new Error(`Could not parse vehicle identification data: ${parseError.message}`);
     }
     
     // Validate dual language structure
@@ -400,6 +461,19 @@ FORMAT RULES:
 
     } catch (fetchError) {
       clearTimeout(timeoutId);
+      const elapsed = Date.now() - startTime;
+      console.error(`❌ Fetch error after ${elapsed}ms:`, fetchError);
+      
+      // DEBUG: Detailed error alert
+      if (__DEV__) {
+        const { Alert } = require('react-native');
+        Alert.alert(
+          'DEBUG: Fetch Error',
+          `Error: ${fetchError.name}\nMessage: ${fetchError.message}\nTime: ${elapsed}ms\nURL: ${OPENAI_API_URL}`,
+          [{ text: 'OK' }]
+        );
+      }
+      
       if (fetchError.name === 'AbortError') {
         throw new Error('Network request timed out (90s). The server may be slow or unreachable.');
       }
@@ -434,13 +508,38 @@ const convertImageToBase64 = async (imageUri) => {
 // Alternative method using FileSystem for Expo
 export const convertImageToBase64Expo = async (imageUri) => {
   try {
-    const { FileSystem } = require('expo-file-system');
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return base64;
+    // Use ImageManipulator to compress the image before converting to base64
+    const { manipulateAsync, SaveFormat } = require('expo-image-manipulator');
+    
+    console.log('🖼️ Compressing image before analysis...');
+    
+    // OPTIMIZED compression: good quality + fast processing
+    const manipResult = await manipulateAsync(
+      imageUri,
+      [{ resize: { width: 1024 } }], // 1024px width (sweet spot for AI recognition)
+      { 
+        compress: 0.65, // 65% quality (slightly more compression for speed)
+        format: SaveFormat.JPEG,
+        base64: true
+      }
+    );
+    
+    const compressedSize = manipResult.base64 ? manipResult.base64.length : 0;
+    console.log(`✅ Image compressed: ${(compressedSize / 1024).toFixed(2)} KB (1024px @ 65% quality)`);
+    
+    return manipResult.base64;
   } catch (error) {
-    throw new Error('Failed to convert image to base64 using Expo FileSystem');
+    console.error('⚠️ Image compression failed, trying without compression:', error);
+    // Fallback: try without compression
+    try {
+      const { FileSystem } = require('expo-file-system');
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return base64;
+    } catch (fallbackError) {
+      throw new Error('Failed to convert image to base64');
+    }
   }
 };
 

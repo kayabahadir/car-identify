@@ -74,7 +74,13 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleBuyCredits = () => {
-    navigation.navigate('CreditsStore');
+    // TEMPORARY: RevenueCat disabled for Expo Go testing
+    Alert.alert(
+      'RevenueCat Disabled',
+      'RevenueCat temporarily disabled for Expo Go testing. Network debugging in progress.',
+      [{ text: 'OK' }]
+    );
+    // navigation.navigate('CreditsStore');
   };
 
   // Test özelliği kaldırıldı - production için güvenli

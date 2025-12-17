@@ -36,3 +36,11 @@ pids
 # Build directories
 build/
 dist/ 
+.vercel
+.env*.local
+
+# Vercel Proxy Files (deployed separately)
+api/
+vercel.json
+.vercelignore
+VERCEL_DEPLOYMENT.md

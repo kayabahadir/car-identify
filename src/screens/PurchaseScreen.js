@@ -14,25 +14,16 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
-import CleanIAPService from '../services/iapServiceClean';
+import RevenueCatService from '../services/revenueCatService';
 import FirstTimeService from '../services/firstTimeService';
 import DebugService from '../services/debugService';
-
-// IAP modülünü conditionally import et
-let InAppPurchases = null;
-try {
-  InAppPurchases = require('expo-in-app-purchases');
-  console.log('✅ PurchaseScreen: InAppPurchases module loaded successfully');
-} catch (error) {
-  console.warn('⚠️ PurchaseScreen: InAppPurchases module not available - will use mock mode');
-}
 
 const PurchaseScreen = ({ navigation }) => {
   const { language, t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [currentCredits, setCurrentCredits] = useState(0);
-  const [iapProducts, setIapProducts] = useState([]); // Gerçek IAP ürünleri
+  const [rcPackages, setRcPackages] = useState([]); // RevenueCat paketleri
 
   // Türkçe virgül notation için gelişmiş price parsing
   const parsePrice = (priceString) => {
@@ -124,14 +115,18 @@ const PurchaseScreen = ({ navigation }) => {
   const packages = React.useMemo(() => {
     return basePackages.map(basePackage => {
       try {
-        const iapProduct = iapProducts.find(product => product.productId === basePackage.id);
-        const currentPrice = iapProduct?.price || (language === 'tr' ? 'Yükleniyor...' : 'Loading...');
+        // RevenueCat paketlerinden eşleşeni bul
+        const rcPackage = rcPackages.find(p => p.product.identifier === basePackage.id);
+        const product = rcPackage?.product;
+        
+        const currentPrice = product?.priceString || (language === 'tr' ? 'Yükleniyor...' : 'Loading...');
         const originalPrice = getOriginalPrice(currentPrice, basePackage.savings);
         
         let pricePerCredit = '...';
-        if (iapProduct?.price) {
+        if (product?.price) {
           try {
-            const numericPrice = parsePrice(iapProduct.price);
+            // RevenueCat price already number
+            const numericPrice = product.price;
             if (numericPrice > 0 && basePackage.credits > 0) {
               pricePerCredit = (numericPrice / basePackage.credits).toFixed(3);
             }
@@ -158,7 +153,7 @@ const PurchaseScreen = ({ navigation }) => {
         };
       }
     });
-  }, [basePackages, iapProducts, language, getOriginalPrice]);
+  }, [basePackages, rcPackages, language, getOriginalPrice]);
 
   useEffect(() => {
     loadCurrentCredits();
@@ -181,31 +176,24 @@ const PurchaseScreen = ({ navigation }) => {
 
   const loadIAPProducts = async () => {
     try {
-      console.log('Loading IAP products...');
+      console.log('Loading RevenueCat products...');
       
-      // Initialize IAP (safe)
-      try {
-        const initResult = await CleanIAPService.initialize();
-        console.log('IAP initialized:', initResult);
-      } catch (initError) {
-        console.error('Initialize error:', initError);
-        // Continue - will use fallback
+      // Initialize RevenueCat
+      const initResult = await RevenueCatService.initialize();
+      if (!initResult) {
+        console.error('RevenueCat initialization failed');
+        setFallbackProducts(); // Hata durumunda fallback göster
+        return;
       }
       
-      // Get products (safe)
-      try {
-        const products = await CleanIAPService.getProducts();
-        console.log('Products loaded:', products?.length || 0);
+      // Get packages
+      const packages = await RevenueCatService.getPackages();
+      console.log('RevenueCat packages loaded:', packages?.length || 0);
 
-        if (products && products.length > 0) {
-          setIapProducts(products);
-          console.log('IAP products set');
-        } else {
-          console.log('No products, using fallback');
-          setFallbackProducts();
-        }
-      } catch (productsError) {
-        console.error('Get products error:', productsError);
+      if (packages && packages.length > 0) {
+        setRcPackages(packages);
+      } else {
+        console.log('No packages found, using fallback');
         setFallbackProducts();
       }
       
@@ -216,107 +204,90 @@ const PurchaseScreen = ({ navigation }) => {
   };
 
   const setFallbackProducts = () => {
-    // Yeni consumable ürünler için fallback fiyatlar - ID'ler eşleşmeli
-    const fallbackProducts = [
-      { productId: 'com.caridentify.app.credits.consumable.pack10', price: '₺99,99' },
-      { productId: 'com.caridentify.app.credits.consumable.pack50', price: '₺289,99' },
-      { productId: 'com.caridentify.app.credits.consumable.pack200', price: '₺829,99' }
+    // Fallback için mock paketler oluştur
+    // RevenueCat paket yapısını taklit et
+    const fallbackPackages = [
+      { 
+        identifier: 'pack10', 
+        product: { identifier: 'com.caridentify.app.credits.consumable.pack10', priceString: '₺99,99', currencyCode: 'TRY' } 
+      },
+      { 
+        identifier: 'pack50', 
+        product: { identifier: 'com.caridentify.app.credits.consumable.pack50', priceString: '₺289,99', currencyCode: 'TRY' } 
+      },
+      { 
+        identifier: 'pack200', 
+        product: { identifier: 'com.caridentify.app.credits.consumable.pack200', priceString: '₺829,99', currencyCode: 'TRY' } 
+      }
     ];
-    console.log('📦 Setting fallback products with IDs:', fallbackProducts.map(p => p.productId));
-    setIapProducts(fallbackProducts);
+    console.log('📦 Setting fallback packages');
+    setRcPackages(fallbackPackages);
   };
 
-  const handlePurchase = async (packageInfo) => {
-    // Validation
-    if (!packageInfo || !packageInfo.id) {
-      console.error('Invalid packageInfo');
+  const handlePurchase = async (basePkg) => {
+    // 1. İlgili RevenueCat paketini bul
+    // Base package ID'si (com.caridentify...) ile eşleşen RC paketini bulmalıyız
+    const rcPackage = rcPackages.find(p => p.product.identifier === basePkg.id);
+    
+    if (!rcPackage) {
+      console.error('RevenueCat package not found for:', basePkg.id);
+      Alert.alert(t('error'), t('productNotFound'));
       return;
     }
     
     // Prevent multiple clicks
-    if (loading) {
-      console.log('Already loading, ignoring click');
-      return;
-    }
+    if (loading) return;
     
     console.log('=== handlePurchase START ===');
-    console.log('Package:', packageInfo.id);
+    console.log('Product:', basePkg.id);
     
-    // Set loading state
     try {
       setLoading(true);
-      setSelectedPackage(packageInfo.id);
-    } catch (setStateError) {
-      console.error('setState error:', setStateError);
-      return;
-    }
-    
-    try {
-      // Call purchase
-      console.log('Calling purchaseProduct...');
-      const result = await CleanIAPService.purchaseProduct(packageInfo.id);
+      setSelectedPackage(basePkg.id);
+      
+      // Call purchase via RevenueCat
+      console.log('Calling RevenueCat purchase...');
+      const result = await RevenueCatService.purchasePackage(rcPackage);
       
       console.log('Purchase result:', result);
       
       // Mark first time (non-blocking)
       try {
         FirstTimeService.markFreeAnalysisUsed().catch(() => {});
-      } catch (e) {
-        // Ignore
-      }
+      } catch (e) {}
       
       // Close loading
-      try {
-        setLoading(false);
-        setSelectedPackage(null);
-      } catch (e) {
-        console.error('setState error:', e);
-      }
+      setLoading(false);
+      setSelectedPackage(null);
       
       // Show success
-      try {
+      if (result.success) {
         Alert.alert(
           '🎉 ' + (language === 'tr' ? 'Satın Alma Başarılı!' : 'Purchase Successful!'),
-          `${packageInfo.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
+          `${basePkg.credits} ${language === 'tr' ? 'kredi hesabınıza eklendi.' : 'credits added to your account.'}`,
           [{ 
             text: language === 'tr' ? 'Devam' : 'Continue',
             onPress: () => {
-              try {
-                navigation.navigate('Home', { forceRefresh: Date.now() });
-              } catch (navError) {
-                console.error('Navigation error:', navError);
-              }
+              navigation.navigate('Home', { forceRefresh: Date.now() });
             }
           }]
         );
-      } catch (alertError) {
-        console.error('Alert error:', alertError);
       }
 
     } catch (error) {
       console.error('=== handlePurchase ERROR ===');
-      console.error('Error:', error?.message || error);
+      console.error('Error:', error);
       
-      // Close loading
-      try {
-        setLoading(false);
-        setSelectedPackage(null);
-      } catch (e) {
-        console.error('setState error:', e);
-      }
+      setLoading(false);
+      setSelectedPackage(null);
       
-      // Show error (not for cancel or İptal edildi)
-      const errorMsg = error?.message || '';
-      if (!errorMsg.includes('cancel') && !errorMsg.includes('İptal edildi')) {
-        try {
-          Alert.alert(
-            language === 'tr' ? 'Satın Alma Hatası' : 'Purchase Error',
-            errorMsg || (language === 'tr' ? 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.' : 'Purchase failed. Please try again.'),
-            [{ text: language === 'tr' ? 'Tamam' : 'OK' }]
-          );
-        } catch (alertError) {
-          console.error('Alert error:', alertError);
-        }
+      // Show error (unless user cancelled)
+      if (!error.userCancelled && error.message !== 'Purchase cancelled') {
+        Alert.alert(
+          language === 'tr' ? 'Satın Alma Hatası' : 'Purchase Error',
+          error.message || t('purchaseFailed'),
+          [{ text: language === 'tr' ? 'Tamam' : 'OK' }]
+        );
       }
     }
   };

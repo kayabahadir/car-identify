@@ -10,7 +10,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreditService from '../services/creditService';
@@ -97,9 +96,14 @@ const HomeScreen = ({ navigation, route }) => {
 
   // Onboarding'den gelen satın alma işlemini handle et
   const handleOnboardingPurchase = async (packageId) => {
-    // Onboarding'den gelen satın alma isteğini direkt Credits Store'a yönlendir
+    // TEMPORARY: RevenueCat disabled for Expo Go testing
     setPurchaseLoading(false);
-    navigation.navigate('CreditsStore');
+    Alert.alert(
+      'RevenueCat Disabled',
+      'RevenueCat temporarily disabled for Expo Go testing. Network debugging in progress.',
+      [{ text: 'OK' }]
+    );
+    // navigation.navigate('CreditsStore');
   };
 
   const handleAnalysisAttempt = async (imagePickerFunction) => {
@@ -148,13 +152,9 @@ const HomeScreen = ({ navigation, route }) => {
 
       if (!result.canceled) {
         const asset = result.assets[0];
-        const manipulated = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [{ resize: { width: 1024 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-        );
-        // Navigate to result screen with resized/compressed image
-        navigation.navigate('Result', { imageUri: manipulated.uri, imageBase64: manipulated.base64 });
+        // Navigate to result screen with original image URI
+        // Image compression and base64 encoding will be done in openaiService
+        navigation.navigate('Result', { imageUri: asset.uri });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }
@@ -182,13 +182,9 @@ const HomeScreen = ({ navigation, route }) => {
 
       if (!result.canceled) {
         const asset = result.assets[0];
-        const manipulated = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [{ resize: { width: 1024 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-        );
-        // Navigate to result screen with resized/compressed image
-        navigation.navigate('Result', { imageUri: manipulated.uri, imageBase64: manipulated.base64 });
+        // Navigate to result screen with original image URI
+        // Image compression and base64 encoding will be done in openaiService
+        navigation.navigate('Result', { imageUri: asset.uri });
         // Kredi durumunu yenile
         setTimeout(checkCreditStatus, 1000);
       }
@@ -258,7 +254,15 @@ const HomeScreen = ({ navigation, route }) => {
           {/* Credits Store Button - Always Visible */}
           <TouchableOpacity 
             style={styles.buyCreditsButton}
-            onPress={() => navigation.navigate('CreditsStore')}
+            onPress={() => {
+              // TEMPORARY: RevenueCat disabled for Expo Go testing
+              Alert.alert(
+                'RevenueCat Disabled',
+                'RevenueCat temporarily disabled for Expo Go testing. Network debugging in progress.',
+                [{ text: 'OK' }]
+              );
+              // navigation.navigate('CreditsStore');
+            }}
             disabled={purchaseLoading}
           >
             <Ionicons name="cart" size={16} color="white" style={styles.buttonIcon} />
