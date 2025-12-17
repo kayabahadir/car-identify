@@ -78,10 +78,10 @@ const ResultScreen = ({ navigation, route }) => {
           vehicleData: result
         });
       } catch (error) {
-        console.log('OpenAI identification failed, using mock data:', error.message);
+        console.log('OpenAI identification failed:', error.message);
         
         // Show appropriate alert based on error type
-        let alertTitle = t('demoMode');
+        let alertTitle = __DEV__ ? t('demoMode') : (language === 'tr' ? 'Analiz Hatası' : 'Analysis Error');
         let alertMessage = language === 'tr' ? 'Analiz hatası.' : 'Analysis error.';
         let shouldShowDemo = __DEV__; // Only show demo in development mode
         
@@ -126,17 +126,22 @@ const ResultScreen = ({ navigation, route }) => {
           ]);
           setIsLoading(false);
           return; // Don't show demo data for credit issues
-        } else if (error.message.includes('Network')) {
-          alertTitle = t('connectionError');
+        } else if (error.message.includes('Network') || error.message.includes('timeout') || error.message.includes('fetch')) {
+          alertTitle = t('connectionError') || (language === 'tr' ? 'Bağlantı Hatası' : 'Connection Error');
           // Show detailed error message for debugging
-          const errorDetail = `\n\nError: ${error.message}`;
+          const errorDetail = __DEV__ ? `\n\nError: ${error.message}` : '';
           alertMessage = language === 'tr'
             ? (__DEV__
               ? 'Ağ bağlantı sorunu. Demo sonuçları gösteriliyor. Lütfen internet bağlantınızı kontrol edin.' + errorDetail
-              : 'Ağ bağlantı sorunu. Lütfen internet bağlantınızı kontrol edin.' + errorDetail)
+              : 'Ağ bağlantı sorunu. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.')
             : (__DEV__
               ? 'Network connection issue. Showing demo results. Please check your internet connection.' + errorDetail
-              : 'Network connection issue. Please check your internet connection.' + errorDetail);
+              : 'Network connection issue. Please check your internet connection and try again.');
+        } else if (error.message.includes('API key not configured') || error.message.includes('proxy')) {
+          alertTitle = language === 'tr' ? 'Yapılandırma Hatası' : 'Configuration Error';
+          alertMessage = language === 'tr'
+            ? 'API yapılandırması eksik. Lütfen uygulamayı güncelleyin veya desteğe başvurun.'
+            : 'API configuration missing. Please update the app or contact support.';
         }
         
         // Production'da demo mode'a düşme - direkt hata göster ve geri dön

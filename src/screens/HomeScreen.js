@@ -96,14 +96,14 @@ const HomeScreen = ({ navigation, route }) => {
 
   // Onboarding'den gelen satın alma işlemini handle et
   const handleOnboardingPurchase = async (packageId) => {
-    // TEMPORARY: RevenueCat disabled for Expo Go testing
-    setPurchaseLoading(false);
-    Alert.alert(
-      'RevenueCat Disabled',
-      'RevenueCat temporarily disabled for Expo Go testing. Network debugging in progress.',
-      [{ text: 'OK' }]
-    );
-    // navigation.navigate('CreditsStore');
+    setPurchaseLoading(true);
+    try {
+      navigation.navigate('Purchase');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    } finally {
+      setPurchaseLoading(false);
+    }
   };
 
   const handleAnalysisAttempt = async (imagePickerFunction) => {
@@ -255,13 +255,7 @@ const HomeScreen = ({ navigation, route }) => {
           <TouchableOpacity 
             style={styles.buyCreditsButton}
             onPress={() => {
-              // TEMPORARY: RevenueCat disabled for Expo Go testing
-              Alert.alert(
-                'RevenueCat Disabled',
-                'RevenueCat temporarily disabled for Expo Go testing. Network debugging in progress.',
-                [{ text: 'OK' }]
-              );
-              // navigation.navigate('CreditsStore');
+              navigation.navigate('Purchase');
             }}
             disabled={purchaseLoading}
           >
