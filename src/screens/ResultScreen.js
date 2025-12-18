@@ -120,7 +120,7 @@ const ResultScreen = ({ navigation, route }) => {
             { 
               text: t('buyCredits') || 'Kredi Satın Al', 
               onPress: () => {
-                navigation.navigate('Purchase');
+                navigation.navigate('CreditsStore');
               }
             }
           ]);

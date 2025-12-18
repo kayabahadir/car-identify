@@ -98,7 +98,7 @@ const HomeScreen = ({ navigation, route }) => {
   const handleOnboardingPurchase = async (packageId) => {
     setPurchaseLoading(true);
     try {
-      navigation.navigate('Purchase');
+      navigation.navigate('CreditsStore');
     } catch (error) {
       console.error('Navigation error:', error);
     } finally {
@@ -255,7 +255,7 @@ const HomeScreen = ({ navigation, route }) => {
           <TouchableOpacity 
             style={styles.buyCreditsButton}
             onPress={() => {
-              navigation.navigate('Purchase');
+              navigation.navigate('CreditsStore');
             }}
             disabled={purchaseLoading}
           >

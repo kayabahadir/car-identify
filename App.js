@@ -4,16 +4,13 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FirstTimeService from './src/services/firstTimeService';
-// TEMPORARY: Disabled for Expo Go testing
-// import RevenueCatService from './src/services/revenueCatService';
-// import { Alert } from 'react-native';
+import RevenueCatService from './src/services/revenueCatService';
 
 // Import screens
 import HomeScreen from './src/screens/HomeScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
-// TEMPORARY: Disabled for Expo Go testing
-// import CreditsStoreScreen from './src/screens/CreditsStoreScreen';
+import CreditsStoreScreen from './src/screens/CreditsStoreScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LegalScreen from './src/screens/LegalScreen';
@@ -27,22 +24,19 @@ export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState(null);
 
   useEffect(() => {
-    // TEMPORARY: Disabled for Expo Go testing
-    // initializeRevenueCat();
-    
+    initializeRevenueCat();
     checkFirstLaunch();
   }, []);
 
-  // TEMPORARY: Disabled for Expo Go testing
-  // const initializeRevenueCat = async () => {
-  //   try {
-  //     console.log('App: Initializing RevenueCat...');
-  //     await RevenueCatService.initialize();
-  //     console.log('App: RevenueCat initialized successfully');
-  //   } catch (error) {
-  //     console.error('App: RevenueCat initialization error:', error);
-  //   }
-  // };
+  const initializeRevenueCat = async () => {
+    try {
+      console.log('App: Initializing RevenueCat...');
+      const ok = await RevenueCatService.initialize();
+      console.log('App: RevenueCat initialized:', ok);
+    } catch (error) {
+      console.error('App: RevenueCat initialization error:', error);
+    }
+  };
 
   const checkFirstLaunch = async () => {
     try {
@@ -74,8 +68,7 @@ export default function App() {
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Result" component={ResultScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
-            {/* TEMPORARY: Disabled for Expo Go testing */}
-            {/* <Stack.Screen name="CreditsStore" component={CreditsStoreScreen} /> */}
+            <Stack.Screen name="CreditsStore" component={CreditsStoreScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Legal" component={LegalScreen} />
           </Stack.Navigator>
