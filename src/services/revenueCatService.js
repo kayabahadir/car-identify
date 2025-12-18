@@ -4,11 +4,15 @@ import CreditsManager from '../iap/creditsManager';
 
 /**
  * ⚠️ RevenueCat Configuration
- * Keys are loaded from environment variables (EAS Secrets)
+ * iOS key is public SDK key, safe to embed in client.
+ * Android key (eğer eklenirse) hâlâ EAS Secrets'ten okunuyor.
  */
+const REVENUECAT_IOS_API_KEY = 'appl_gOQiytBQrrDQOsbjIpXTGnhveGZ';
+const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY;
+
 const REVENUECAT_API_KEY = Platform.select({
-  ios: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY,
-  android: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY,
+  ios: REVENUECAT_IOS_API_KEY,
+  android: REVENUECAT_ANDROID_API_KEY,
 });
 
 /**
@@ -63,14 +67,29 @@ class RevenueCatService {
       console.log('RevenueCat: Loading offerings...');
       
       const offerings = await Purchases.getOfferings();
-      
-      if (offerings.current !== null && offerings.current.availablePackages.length > 0) {
-        this.currentOfferings = offerings.current;
-        console.log('RevenueCat: Loaded', offerings.current.availablePackages.length, 'packages');
+
+      // Prefer current offering, but fall back to "default" or first available
+      let currentOffering = offerings.current;
+
+      if (!currentOffering && offerings.all) {
+        // Try explicit "default" key first
+        if (offerings.all.default) {
+          currentOffering = offerings.all.default;
+        } else {
+          const allOfferingsArray = Object.values(offerings.all);
+          if (allOfferingsArray.length > 0) {
+            currentOffering = allOfferingsArray[0];
+          }
+        }
+      }
+
+      if (currentOffering && currentOffering.availablePackages.length > 0) {
+        this.currentOfferings = currentOffering;
+        console.log('RevenueCat: Loaded', currentOffering.availablePackages.length, 'packages');
         
         // Log package details in dev mode
         if (__DEV__) {
-          offerings.current.availablePackages.forEach(pkg => {
+          currentOffering.availablePackages.forEach(pkg => {
             console.log('Package:', pkg.identifier, '→', pkg.product.identifier, '→', pkg.product.priceString);
           });
         }
