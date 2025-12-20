@@ -178,14 +178,14 @@ const OnboardingScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={[
                 styles.pricingItem, 
-                selectedPackage === 'credits_10_199' && styles.selectedPricingItem
+                selectedPackage === 'pack10' && styles.selectedPricingItem
               ]}
-              onPress={() => handlePackageSelect('credits_10_199')}
+              onPress={() => handlePackageSelect('pack10')}
             >
-              <Text style={styles.pricingCredits}>10 {language === 'tr' ? 'Kredi' : 'Credits'}</Text>
-              <Text style={styles.pricingPrice}>₺59.99</Text>
-              <Text style={styles.pricingSubtext}>{language === 'tr' ? 'Başlangıç paketi' : 'Starter package'}</Text>
-              {selectedPackage === 'credits_10_199' && (
+              <Text style={styles.pricingCredits}>5 {t('credits')}</Text>
+              <Text style={styles.pricingPrice}>$1.99</Text>
+              <Text style={styles.pricingSubtext}>{t('starterPackage')}</Text>
+              {selectedPackage === 'pack10' && (
                 <View style={styles.selectedCheckmark}>
                   <Ionicons name="checkmark-circle" size={20} color="#4f46e5" />
                 </View>
@@ -196,17 +196,17 @@ const OnboardingScreen = ({ navigation }) => {
               style={[
                 styles.pricingItem, 
                 styles.popularPricingItem,
-                selectedPackage === 'credits_50_699' && styles.selectedPricingItem
+                selectedPackage === 'pack50' && styles.selectedPricingItem
               ]}
-              onPress={() => handlePackageSelect('credits_50_699')}
+              onPress={() => handlePackageSelect('pack50')}
             >
-              <Text style={styles.pricingCredits}>50 {language === 'tr' ? 'Kredi' : 'Credits'}</Text>
-              <Text style={styles.pricingPrice}>₺199.99</Text>
-              <Text style={styles.pricingSubtext}>{language === 'tr' ? '%30 tasarruf' : '30% savings'}</Text>
+              <Text style={styles.pricingCredits}>25 {t('credits')}</Text>
+              <Text style={styles.pricingPrice}>$4.99</Text>
+              <Text style={styles.pricingSubtext}>{t('savings30')}</Text>
               <View style={styles.popularBadge}>
-                <Text style={styles.popularText}>{language === 'tr' ? 'POPÜLER' : 'POPULAR'}</Text>
+                <Text style={styles.popularText}>{t('popular')}</Text>
               </View>
-              {selectedPackage === 'credits_50_699' && (
+              {selectedPackage === 'pack50' && (
                 <View style={styles.selectedCheckmark}>
                   <Ionicons name="checkmark-circle" size={20} color="#4f46e5" />
                 </View>
@@ -216,14 +216,14 @@ const OnboardingScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={[
                 styles.pricingItem,
-                selectedPackage === 'credits_200_1999' && styles.selectedPricingItem
+                selectedPackage === 'pack200' && styles.selectedPricingItem
               ]}
-              onPress={() => handlePackageSelect('credits_200_1999')}
+              onPress={() => handlePackageSelect('pack200')}
             >
-              <Text style={styles.pricingCredits}>200 {language === 'tr' ? 'Kredi' : 'Credits'}</Text>
-              <Text style={styles.pricingPrice}>₺599.99</Text>
-              <Text style={styles.pricingSubtext}>{language === 'tr' ? '%50 tasarruf' : '50% savings'}</Text>
-              {selectedPackage === 'credits_200_1999' && (
+              <Text style={styles.pricingCredits}>100 {t('credits')}</Text>
+              <Text style={styles.pricingPrice}>$9.99</Text>
+              <Text style={styles.pricingSubtext}>{t('savings50')}</Text>
+              {selectedPackage === 'pack200' && (
                 <View style={styles.selectedCheckmark}>
                   <Ionicons name="checkmark-circle" size={20} color="#4f46e5" />
                 </View>
@@ -255,7 +255,7 @@ const OnboardingScreen = ({ navigation }) => {
           
           {/* Skip Button */}
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-            <Text style={styles.skipText}>{language === 'tr' ? 'Atla' : 'Skip'}</Text>
+            <Text style={styles.skipText}>{t('skip')}</Text>
           </TouchableOpacity>
         </View>
         
@@ -310,7 +310,7 @@ const OnboardingScreen = ({ navigation }) => {
           {currentIndex > 0 ? (
             <TouchableOpacity style={styles.previousButton} onPress={handlePrevious}>
               <Ionicons name="chevron-back" size={20} color="#6b7280" />
-              <Text style={styles.previousText}>Geri</Text>
+              <Text style={styles.previousText}>{t('previous')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.placeholder} />
@@ -328,7 +328,7 @@ const OnboardingScreen = ({ navigation }) => {
             {currentIndex === onboardingData.length - 1 ? (
               selectedPackage ? (
                 <>
-                                     <Text style={styles.getStartedTextActive}>{t('buyAndStart')}</Text>
+                  <Text style={styles.getStartedTextActive}>{t('buyAndStart')}</Text>
                   <Ionicons name="card" size={20} color="white" />
                 </>
               ) : (
@@ -339,7 +339,7 @@ const OnboardingScreen = ({ navigation }) => {
               )
             ) : (
               <>
-                <Text style={styles.nextText}>İleri</Text>
+                <Text style={styles.nextText}>{t('next')}</Text>
                 <Ionicons name="chevron-forward" size={20} color="white" />
               </>
             )}

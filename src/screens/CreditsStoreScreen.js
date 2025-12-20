@@ -17,16 +17,27 @@ import CreditsManager from '../iap/creditsManager';
  * CreditsStoreScreen - RevenueCat powered credits store
  * Displays available packages and handles purchases
  */
-const CreditsStoreScreen = ({ navigation }) => {
+const CreditsStoreScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [packages, setPackages] = useState([]);
   const [currentCredits, setCurrentCredits] = useState(0);
   const [selectedPackageId, setSelectedPackageId] = useState(null);
+  const [autoPurchasePackageId, setAutoPurchasePackageId] = useState(null);
 
   useEffect(() => {
-    loadStoreData();
-  }, []);
+    // Onboarding'den gelen otomatik satın alma paket ID'sini al
+    const packageId = route?.params?.autoPurchasePackageId;
+    if (packageId) {
+      setAutoPurchasePackageId(packageId);
+      // Parametreyi temizle (tekrar tetiklenmesin)
+      navigation.setParams({ autoPurchasePackageId: null });
+      // Paket ID'si ile store data'yı yükle
+      loadStoreData(packageId);
+    } else {
+      loadStoreData();
+    }
+  }, [route?.params?.autoPurchasePackageId]);
 
   // Reload credits when screen comes into focus
   useEffect(() => {
@@ -38,8 +49,9 @@ const CreditsStoreScreen = ({ navigation }) => {
 
   /**
    * Load store data (offerings and current credits)
+   * @param {string} autoPurchasePackageId - Optional package ID to auto-purchase from onboarding
    */
-  const loadStoreData = async () => {
+  const loadStoreData = async (autoPurchasePackageIdParam = null) => {
     try {
       setLoading(true);
 
@@ -52,6 +64,27 @@ const CreditsStoreScreen = ({ navigation }) => {
       if (availablePackages && availablePackages.length > 0) {
         setPackages(availablePackages);
         console.log('Loaded', availablePackages.length, 'packages');
+        
+        // Eğer onboarding'den otomatik satın alma paket ID'si varsa, satın alma başlat
+        const packageIdToPurchase = autoPurchasePackageIdParam || autoPurchasePackageId;
+        if (packageIdToPurchase) {
+          const packageToPurchase = availablePackages.find(
+            pkg => pkg.identifier === packageIdToPurchase
+          );
+          
+          if (packageToPurchase) {
+            console.log('Auto-purchasing package from onboarding:', packageIdToPurchase);
+            // Kısa bir gecikme ile satın alma başlat (UI'nin yüklenmesi için)
+            setTimeout(() => {
+              handlePurchase(packageToPurchase);
+            }, 500);
+            // State'i temizle
+            setAutoPurchasePackageId(null);
+          } else {
+            console.warn('Package not found for auto-purchase:', packageIdToPurchase);
+            setAutoPurchasePackageId(null);
+          }
+        }
       } else {
         console.warn('No packages available');
         Alert.alert(

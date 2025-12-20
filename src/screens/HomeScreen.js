@@ -98,7 +98,10 @@ const HomeScreen = ({ navigation, route }) => {
   const handleOnboardingPurchase = async (packageId) => {
     setPurchaseLoading(true);
     try {
-      navigation.navigate('CreditsStore');
+      // Seçilen paket ID'sini CreditsStore'a parametre olarak geçir
+      navigation.navigate('CreditsStore', { 
+        autoPurchasePackageId: packageId 
+      });
     } catch (error) {
       console.error('Navigation error:', error);
     } finally {

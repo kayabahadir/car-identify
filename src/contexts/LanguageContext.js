@@ -153,6 +153,7 @@ const translations = {
     selectFromAbove: 'Yukarıdan seçim yapın',
     buyAndStart: 'Satın Al & Başla',
     startWithFreeTrial: 'Ücretsiz deneme ile başla',
+    skip: 'Atla',
     
     // Onboarding Data
     welcomeTitle: 'Hoş Geldiniz!',
@@ -190,6 +191,16 @@ const translations = {
     // Free Analysis Gift Box
     freeAnalysisCount: '1 Ücretsiz Analiz',
     startUsingImmediately: 'Hemen kullanmaya başlayın!',
+    
+    // Onboarding Package Selection
+    credits: 'Kredi',
+    starterPackage: 'Başlangıç paketi',
+    popular: 'POPÜLER',
+    bestValue: 'En iyi değer',
+    savings30: '%30 tasarruf',
+    savings50: '%50 tasarruf',
+    previous: 'Geri',
+    next: 'İleri',
     
     // Settings
     settings: 'Ayarlar',
@@ -366,6 +377,7 @@ const translations = {
     selectFromAbove: 'Select from above',
     buyAndStart: 'Buy & Start',
     startWithFreeTrial: 'Start with free trial',
+    skip: 'Skip',
     
     // Onboarding Data
     welcomeTitle: 'Welcome!',
@@ -403,6 +415,16 @@ const translations = {
     // Free Analysis Gift Box
     freeAnalysisCount: '1 Free Analysis',
     startUsingImmediately: 'Start using immediately!',
+    
+    // Onboarding Package Selection
+    credits: 'Credits',
+    starterPackage: 'Starter package',
+    popular: 'POPULAR',
+    bestValue: 'Best value',
+    savings30: '30% savings',
+    savings50: '50% savings',
+    previous: 'Previous',
+    next: 'Next',
     
     // Settings
     settings: 'Settings',
