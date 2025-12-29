@@ -20,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.caridentify.app",
-      "buildNumber": "22",
+      "buildNumber": "23",
       "capabilities": [
         "inAppPurchase"
       ],
